@@ -60,6 +60,8 @@ export class Runtime {
   lightColor: Float32Array;
   lightDirty = true;
   lightVersion = 0;
+  /** A vehicle was added or removed; the occupancy grid needs rebuilding. */
+  vehDirty = false;
   fireLightT = 0;
   noises: NoiseEvent[] = [];
   /** Sounds for the audio engine (consumed each frame). */

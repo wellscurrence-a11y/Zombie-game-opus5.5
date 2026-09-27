@@ -522,6 +522,7 @@ function spawnWreck(s: GameState, rt: Runtime, x: number, y: number): void {
   const v = createVehicle(s.world, rt.rng, s, s.vehicles.length, { x, y, heading: rt.rng.range(-Math.PI, Math.PI), crashed: true, key: rt.rng.chance(0.5) ? 'ignition' : 'none' });
   v.wrecked = rt.rng.chance(0.4);
   s.vehicles.push(v);
+  rt.vehDirty = true;
   // the driver didn't make it far
   const z = newZombie(s, rt.rng, x + rt.rng.range(-2, 2), y + rt.rng.range(-2, 2), 'survivor');
   z.items = [makeItem(s, 'carKey', { keyId: v.keyId, label: 'Car key' })];

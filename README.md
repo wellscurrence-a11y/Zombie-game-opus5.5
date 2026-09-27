@@ -26,6 +26,7 @@ npm install
 npm run dev        # http://localhost:5173
 npm run build      # static build in dist/
 npm test           # simulation & world-generation tests
+SOAK=1 npm test    # also run a slow multi-day soak test
 ```
 
 The build is a static site (relative paths), so `dist/` can be hosted anywhere, including GitHub Pages.

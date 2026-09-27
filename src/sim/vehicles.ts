@@ -288,7 +288,10 @@ export function updateVehicles(s: GameState, rt: Runtime, pf: PathFinder, input:
       }
     }
   }
-  if (moved) refreshVehOcc(s, pf);
+  if (moved || rt.vehDirty) {
+    refreshVehOcc(s, pf);
+    rt.vehDirty = false;
+  }
   // release grabs when the car moves away
   const p = s.player;
   if (p.inVehicle >= 0 && Math.abs(s.vehicles[p.inVehicle].speed) > 1.5 && p.grabbedBy.length) {
