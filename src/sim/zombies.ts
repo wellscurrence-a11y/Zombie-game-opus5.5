@@ -151,6 +151,18 @@ function tickZombie(s: GameState, rt: Runtime, pf: PathFinder, z: Zombie, dt: nu
   switch (z.state) {
     case 'idle': {
       z.vx = z.vy = 0;
+      if (z.timer <= 0 && rng.chance(0.3)) {
+        // the smell of a fresh human body draws them in
+        const body = s.corpses.find((c) => c.wasPlayer && s.time - c.t < 18 && Math.hypot(c.x - z.x, c.y - z.y) < 14);
+        if (body) {
+          z.tx = body.x + rng.range(-0.8, 0.8);
+          z.ty = body.y + rng.range(-0.8, 0.8);
+          z.path = null;
+          z.interest = 60;
+          setState(z, 'investigate', 0);
+          break;
+        }
+      }
       if (z.timer <= 0) {
         if (rng.chance(0.35)) {
           // shuffle somewhere nearby
@@ -180,7 +192,9 @@ function tickZombie(s: GameState, rt: Runtime, pf: PathFinder, z: Zombie, dt: nu
     case 'investigate':
       z.interest -= dt;
       if (walkTo(s, rt, pf, z, dt, z.speed * 0.85)) {
-        setState(z, 'search', rng.range(10, 22));
+        const body = s.corpses.find((c) => c.wasPlayer && s.time - c.t < 18 && Math.hypot(c.x - z.x, c.y - z.y) < 1.5);
+        if (body) setState(z, 'eat', rng.range(40, 120));
+        else setState(z, 'search', rng.range(10, 22));
       } else if (z.interest <= 0) setState(z, 'idle', rng.range(5, 15));
       break;
     case 'search':

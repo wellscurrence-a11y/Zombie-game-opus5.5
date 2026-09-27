@@ -24,6 +24,7 @@ export class Hud {
   vignette = document.createElement('div');
   hurt = document.createElement('div');
   flash = document.createElement('div');
+  fog = document.createElement('div');
   sleep = document.createElement('div');
   toast = document.createElement('div');
   speedo = document.createElement('div');
@@ -47,12 +48,14 @@ export class Hud {
     this.vignette.className = 'overlay vignette';
     this.hurt.className = 'overlay hurt';
     this.flash.className = 'overlay flashw';
+    this.fog.className = 'overlay';
+    this.fog.style.background = 'radial-gradient(ellipse at center, rgba(170,178,182,0.05) 20%, rgba(170,178,182,0.55) 85%)';
     this.sleep.className = 'overlay sleep';
     this.toast.className = 'toast';
     this.speedo.className = 'speedo';
     this.modehint.className = 'modehint';
     this.heard.className = 'overlay';
-    for (const e of [this.vignette, this.hurt, this.flash, this.heard, this.tl, this.tr, this.bl, this.bc, this.br, this.action, this.tip, this.speedo, this.modehint, this.toast, this.sleep]) root.appendChild(e);
+    for (const e of [this.fog, this.vignette, this.hurt, this.flash, this.heard, this.tl, this.tr, this.bl, this.bc, this.br, this.action, this.tip, this.speedo, this.modehint, this.toast, this.sleep]) root.appendChild(e);
     this.sleep.style.display = 'none';
     this.toast.style.display = 'none';
     this.action.style.display = 'none';
@@ -96,6 +99,7 @@ export class Hud {
     this.vignette.style.opacity = String(Math.min(1, 0.25 + pn * 0.9 + (1 - p.body.blood) * 0.8 + (p.needs.endurance < 0.2 ? 0.25 : 0)));
     this.hurt.style.opacity = String(Math.min(1, rt.hurtFlash * 0.9 + (p.grabbedBy.length ? 0.35 + Math.sin(rt.realTime * 12) * 0.15 : 0)));
     this.flash.style.opacity = String(rt.flash);
+    this.fog.style.opacity = String(Math.min(1, s.weather.fog * 1.1) * (0.35 + 0.65 * Math.max(0.15, 1 - (s.time % 24 < 6 || s.time % 24 > 20 ? 0.8 : 0))));
     this.sleep.style.display = p.sleeping ? 'flex' : 'none';
     if (p.sleeping) {
       const info = this.sleep.querySelector('#sleepinfo')!;

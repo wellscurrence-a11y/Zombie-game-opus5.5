@@ -502,7 +502,8 @@ export class Renderer {
     this.hemi.groundColor.set(0x3a342a).lerp(new THREE.Color(0x151515), 1 - day);
     this.hemi.intensity = lerp(0.35, 1.25, day) * (1 - overcast * 0.2);
     U.uNight.value = 1 - day;
-    U.uWet.value = wx.rain > 0.1 ? Math.min(1, wx.rain * 1.4) : 0;
+    U.uWet.value = wx.rain > 0.1 && wx.kind !== 'snow' ? Math.min(1, wx.rain * 1.4) : 0;
+    U.uSnow.value = wx.snow ?? 0;
     const fogCol = new THREE.Color(0x0a0c10).lerp(new THREE.Color(0x8a9096), wx.fog * day * 0.9 + wx.fog * 0.15);
     U.uFogColor.value.copy(fogCol);
     U.uFogAmt.value = wx.fog;

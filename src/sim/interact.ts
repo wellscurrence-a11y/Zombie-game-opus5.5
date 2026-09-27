@@ -257,7 +257,36 @@ export function doorOptions(c: Ctx, d: Door): Option[] {
     out.push({ label: 'Pry open (crowbar)', enabled: !!bar, reason: bar ? undefined : 'Need a crowbar', run: () => pryDoor(c, d) });
   }
   if (d.kind !== 'garage') out.push(...barricadeOptions(c, d, true));
+  if (!d.broken && d.hp < d.maxHp - 5) out.push(repairOption(c, `Repair door (${Math.round((d.hp / d.maxHp) * 100)}%)`, () => {
+    d.hp = Math.min(d.maxHp, d.hp + d.maxHp * (0.35 + lvl(c.s.player, 'carpentry') * 0.05));
+  }));
+  if (d.broken) out.push(repairOption(c, 'Rehang the broken door', () => {
+    d.broken = false;
+    d.open = false;
+    d.hp = d.maxHp * 0.4;
+    c.s.world.rev.doors++;
+    c.rt.fovDirty = true;
+  }, 2));
   return out;
+}
+
+export function repairOption(c: Ctx, label: string, apply: () => void, planks = 1): Option {
+  const s = c.s;
+  const hammer = hasTool(carried(s), 'hammer');
+  const ok = !!hammer && countItem(s, 'plank') >= planks && countItem(s, 'nails') >= 3;
+  return {
+    label, enabled: ok, reason: ok ? undefined : `Need a hammer, ${planks} plank${planks > 1 ? 's' : ''} and 3 nails`,
+    run: () => startAction(c, {
+      label: 'Repairing', dur: 7 * (1 - lvl(s.player, 'carpentry') * 0.05), cancelOnMove: true, anim: 'hammer',
+      noise: { radius: 13, every: 1.2, acc: 0.5, kind: 'hammer' },
+      onDone: () => {
+        if (!consume(s, 'plank', planks) || !consume(s, 'nails', 3)) return;
+        apply();
+        addXp(s.player, 'carpentry', 8);
+        log(s, 'Repaired.', 'good');
+      },
+    }),
+  };
 }
 
 // ================================================================== windows
@@ -809,15 +838,40 @@ export function optionsFor(c: Ctx, t: Target, openLoot: (key: string) => void): 
       const far = !corpse || Math.hypot(corpse.x - s.player.x, corpse.y - s.player.y) > 1.6;
       return { title: corpse?.name ?? 'Corpse', options: [{ label: 'Search the body', run: () => openCorpse(c, t.id, () => openLoot(`k${t.id}`)) }], far };
     }
+    case 'wall': {
+      const i = ty * w.w + tx;
+      const bw = w.builtWalls[i];
+      if (bw) {
+        const far = tileDist(s, tx, ty) > REACH;
+        const opts: Option[] = [];
+        if (bw.hp < bw.maxHp - 5) opts.push(repairOption(c, `Repair wall (${Math.round((bw.hp / bw.maxHp) * 100)}%)`, () => {
+          bw.hp = Math.min(bw.maxHp, bw.hp + bw.maxHp * (0.4 + lvl(s.player, 'carpentry') * 0.05));
+        }));
+        const tool = hasTool(carried(s), 'hammer') ?? hasTool(carried(s), 'crowbar');
+        opts.push({ label: 'Dismantle', enabled: !!tool, reason: tool ? undefined : 'Need a hammer or crowbar', run: () => startAction(c, {
+          label: 'Dismantling', dur: 8, cancelOnMove: true, anim: 'work', noise: { radius: 11, every: 1.2, acc: 0, kind: 'pry' },
+          onDone: () => {
+            delete w.builtWalls[i];
+            w.struct[i] = S.None;
+            w.rev.walls++;
+            w.rev.ground++;
+            c.rt.fovDirty = true;
+            s.player.inventory.push(makeItem(s, bw.kind === 'log' ? 'log' : bw.kind === 'metal' ? 'scrap' : 'plank', { qty: 2 }));
+          },
+        }) });
+        return { title: `Your ${bw.kind === 'log' ? 'log' : bw.kind === 'metal' ? 'metal' : 'wooden'} wall (${Math.round(bw.hp)}/${bw.maxHp})`, options: opts, far };
+      }
+      return { title: 'Wall', options: [], far: false };
+    }
     case 'ground':
-    case 'wall':
     default: {
       const far = tileDist(s, tx, ty) > 1.6;
       const opts: Option[] = [];
       const fl = s.floor[ty * w.w + tx];
       if (fl?.length) opts.push({ label: `Look at items on the ground (${fl.length})`, run: () => openLoot(`f${ty * w.w + tx}`) });
       opts.push(...groundActions(c, tx, ty));
-      return { title: t.kind === 'wall' ? 'Wall' : groundName(s, tx, ty), options: opts, far };
+      if (s.player.needs.fatigue >= 0.3 && Math.floor(s.player.x) === tx && Math.floor(s.player.y) === ty) opts.push({ label: 'Sleep here, on the ground', run: () => trySleep(c, null) });
+      return { title: groundName(s, tx, ty), options: opts, far };
     }
   }
 }

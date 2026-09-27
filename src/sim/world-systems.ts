@@ -18,6 +18,8 @@ import type { GameState, WeatherState } from './types';
 import { startFire, updateCooking, updateCrops } from './world-actions';
 import { zombieDies } from './zombies';
 import { HY, VX } from '../world/gen';
+import { createVehicle } from './vehicleSpecs';
+import { makeItem } from './items';
 
 // ================================================================== weather
 
@@ -70,6 +72,9 @@ export function updateWeather(s: GameState, rt: Runtime, hours: number): void {
   wx.wind += (target.wind - wx.wind) * k;
   const t = seasonalTemp(s) - wx.rain * 3 - wx.cloud * 1.5 - (wx.kind === 'storm' ? 2 : 0);
   wx.temp += (t - wx.temp) * Math.min(1, hours * 0.8);
+  // snow settles when it's cold enough and melts when it isn't
+  if (wx.kind === 'snow' && wx.temp < 2) wx.snow = Math.min(1, (wx.snow ?? 0) + hours * 0.25);
+  else if (wx.temp > 1) wx.snow = Math.max(0, (wx.snow ?? 0) - hours * 0.08 * (wx.temp - 0.5));
   // thunder: loud, far away, and it pulls the dead around
   if (wx.kind === 'storm') {
     wx.lightningT -= hours;
@@ -460,7 +465,8 @@ function updateEvents(s: GameState, rt: Runtime): void {
       break;
     }
     case 'crash': {
-      const pt = farPoint(s, rt, 50, 110);
+      const pt = roadPointFar(s, rt, 50, 110) ?? farPoint(s, rt, 50, 110);
+      spawnWreck(s, rt, pt.x, pt.y);
       for (let k = 0; k < 3; k++) emitNoise(s, rt, { x: pt.x, y: pt.y, radius: 35, kind: 'crash', src: 'world', label: 'A distant car crash' });
       if (Math.hypot(pt.x - p.x, pt.y - p.y) < 110) log(s, `Tires screech and metal crunches ${describeDirection(s, pt.x, pt.y)}. Someone else is out there.`, 'sound');
       break;
@@ -499,6 +505,28 @@ function updateEvents(s: GameState, rt: Runtime): void {
     default:
       break;
   }
+}
+
+function roadPointFar(s: GameState, rt: Runtime, min: number, max: number): { x: number; y: number } | null {
+  const w = s.world;
+  for (let t = 0; t < 60; t++) {
+    const pt = farPoint(s, rt, min, max);
+    const x = Math.floor(pt.x);
+    const y = Math.floor(pt.y);
+    if (w.ground[y * w.w + x] === G.Road && w.struct[y * w.w + x] === S.None) return { x: x + 0.5, y: y + 0.5 };
+  }
+  return null;
+}
+
+function spawnWreck(s: GameState, rt: Runtime, x: number, y: number): void {
+  if (s.vehicles.some((v) => Math.hypot(v.x - x, v.y - y) < 6)) return;
+  const v = createVehicle(s.world, rt.rng, s, s.vehicles.length, { x, y, heading: rt.rng.range(-Math.PI, Math.PI), crashed: true, key: rt.rng.chance(0.5) ? 'ignition' : 'none' });
+  v.wrecked = rt.rng.chance(0.4);
+  s.vehicles.push(v);
+  // the driver didn't make it far
+  const z = newZombie(s, rt.rng, x + rt.rng.range(-2, 2), y + rt.rng.range(-2, 2), 'survivor');
+  z.items = [makeItem(s, 'carKey', { keyId: v.keyId, label: 'Car key' })];
+  s.zombies.push(z);
 }
 
 function updateGunfire(s: GameState, rt: Runtime, dt: number): void {

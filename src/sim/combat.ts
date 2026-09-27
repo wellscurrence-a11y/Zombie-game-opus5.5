@@ -182,7 +182,13 @@ export function swingTime(s: GameState): number {
   t /= 0.6 + 0.4 * handFactor(p);
   if (stats && def(heldItem(p)!.id).weight > 1.5) t *= 1 + Math.max(0, def(heldItem(p)!.id).weight - lvl(p, 'strength') * 0.45) * 0.08;
   if (p.needs.fatigue > 0.8) t *= 1.15;
+  if (stats?.twoHanded && brokenArm(s)) t *= 2;
   return t;
+}
+
+export function brokenArm(s: GameState): boolean {
+  return s.player.body.injuries.some((i) => i.type === 'fracture' && (i.part === 'lArm' || i.part === 'rArm') && !i.splinted && i.heal < 0.9)
+    || s.player.body.injuries.some((i) => i.type === 'fracture' && (i.part === 'lArm' || i.part === 'rArm') && i.heal < 0.6);
 }
 
 function stomTarget(s: GameState, rt: Runtime): Zombie | null {
@@ -295,6 +301,7 @@ function resolveMelee(s: GameState, rt: Runtime): void {
     }
     const skill = stats ? lvl(p, stats.skill) : 0;
     let dmg = (stats ? stats.dmg : 0.25) * (0.7 + str * 0.06) * (0.55 + 0.45 * vig) * hf * (0.85 + skill * 0.03) * rng.range(0.8, 1.2);
+    if (stats?.twoHanded && brokenArm(s)) dmg *= 0.45;
     const crit = rng.chance((stats ? stats.crit : 0.05) + skill * 0.02 - panic * 0.05);
     if (crit) dmg *= 2.2;
     const knock = (stats ? stats.knock : 0.4) * (0.6 + str * 0.06) * (0.5 + 0.5 * vig);

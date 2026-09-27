@@ -291,6 +291,8 @@ export interface WeatherState {
   /** Forecast for the next change (radio). */
   forecast: WeatherState['kind'];
   lightningT: number;
+  /** 0..1 snow lying on the ground. */
+  snow?: number;
 }
 
 export interface UtilityState {

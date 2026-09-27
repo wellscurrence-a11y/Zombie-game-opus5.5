@@ -190,6 +190,7 @@ export function newGame(seed: number, spec: SurvivorSpec, settings: WorldSetting
   secureHome(s, home.bld);
   log(s, `${spec.name} wakes up at home. The radio said to stay indoors. That was two days ago.`, 'info');
   log(s, 'Survive for as long as you can.', 'warn');
+  log(s, 'WASD to move · Right-click things for options · E to open doors · Tab for inventory · Esc for help.', 'info');
   return s;
 }
 

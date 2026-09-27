@@ -13,6 +13,7 @@ export const U = {
   uTime: { value: 0 },
   uNight: { value: 0 },
   uWet: { value: 0 },
+  uSnow: { value: 0 },
 };
 
 const COMMON_FRAG = /* glsl */ `
@@ -24,6 +25,7 @@ uniform float uFogAmt;
 uniform float uTime;
 uniform float uNight;
 uniform float uWet;
+uniform float uSnow;
 varying vec3 vWPos;
 float qh21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 float qnoise(vec2 p) {
@@ -144,8 +146,13 @@ vec3 groundColor(vec2 wp, out float aoEdge) {
   if ((walls & 4) != 0) ao *= mix(0.62, 1.0, smoothstep(0.0, 0.35, 1.0 - f.y));
   if ((walls & 8) != 0) ao *= mix(0.62, 1.0, smoothstep(0.0, 0.35, f.x));
   aoEdge = ao;
-  // rain darkens outdoor surfaces
-  c *= 1.0 - uWet * 0.25;
+  // rain darkens outdoor surfaces; snow settles on them
+  bool outdoor = (walls & 16) == 0;
+  if (outdoor) {
+    c *= 1.0 - uWet * 0.25;
+    float drift = smoothstep(0.35, 0.65, qfbm(wp * 0.7) + uSnow * 0.6);
+    c = mix(c, vec3(0.86, 0.88, 0.9) * (0.92 + nf * 0.08), uSnow * drift * (type == 9 ? 0.0 : 0.95));
+  }
   return s2l(c);
 }
 `;
@@ -171,6 +178,7 @@ export function patchMaterial<T extends THREE.Material>(mat: T, opts: PatchOpts 
     shader.uniforms.uTime = U.uTime;
     shader.uniforms.uNight = U.uNight;
     shader.uniforms.uWet = U.uWet;
+    shader.uniforms.uSnow = U.uSnow;
     if (opts.ground) shader.uniforms.uTiles = U.uTiles;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vWPos;')

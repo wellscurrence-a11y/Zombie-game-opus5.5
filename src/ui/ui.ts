@@ -135,7 +135,7 @@ export class UI {
         body = renderCraft(g);
         break;
       case 'map':
-        body = `<div class="mapwrap"><canvas></canvas></div><p class="dim" style="text-align:center;font-size:11px">${g.s.hasMap ? 'Your map shows the town\'s layout.' : 'Only places you have seen are marked. A map of Cedar Hollow would show more.'}</p>`;
+        body = `<div class="mapwrap"><canvas style="cursor:crosshair"></canvas></div><p class="dim" style="text-align:center;font-size:11px">${g.s.hasMap ? 'Your map shows the town\'s layout.' : 'Only places you have seen are marked. A map of Cedar Hollow would show more.'} Click to add or remove a marker.</p>`;
         break;
       case 'journal':
         body = renderJournal(g);
@@ -148,7 +148,21 @@ export class UI {
     [...this.panel.querySelectorAll('.list')].forEach((l, i) => (l.scrollTop = listScroll[i] ?? 0));
     if (this.tab === 'map') {
       const cv = this.panel.querySelector('canvas');
-      if (cv) drawMap(g, cv);
+      if (cv) {
+        drawMap(g, cv);
+        cv.addEventListener('click', (e) => {
+          const r = cv.getBoundingClientRect();
+          const x = ((e.clientX - r.left) / r.width) * g.s.world.w;
+          const y = ((e.clientY - r.top) / r.height) * g.s.world.h;
+          const near = g.s.mapMarkers.findIndex((m) => Math.hypot(m.x - x, m.y - y) < 4);
+          if (near >= 0) g.s.mapMarkers.splice(near, 1);
+          else {
+            const label = prompt('Label this spot:', 'Base');
+            if (label) g.s.mapMarkers.push({ x, y, label: label.slice(0, 24) });
+          }
+          drawMap(g, cv);
+        });
+      }
     }
   }
 

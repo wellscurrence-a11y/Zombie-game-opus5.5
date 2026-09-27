@@ -46,6 +46,7 @@ export class Ground {
       d[i * 4 + 1] = w.groundVar[i];
       d[i * 4 + 2] = w.decal[i];
       let walls = 0;
+      if (w.room[i] >= 0 || w.struct[i] === S.Wall || w.struct[i] === S.Door || w.struct[i] === S.Window) walls |= 16;
       if (w.room[i] >= 0) {
         const x = i % w.w;
         const y = (i / w.w) | 0;
