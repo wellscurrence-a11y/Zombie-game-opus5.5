@@ -27,6 +27,10 @@ class App {
     this.prefs = await getSetting<Prefs>('prefs', this.prefs);
     this.applyPrefs();
     const params = new URLSearchParams(location.search);
+    if (params.has('lowgfx')) {
+      this.prefs = { ...this.prefs, shadows: false, pixelRatio: 0.5 };
+      this.applyPrefs();
+    }
     if (params.has('quick')) {
       // developer shortcut: jump straight into a fresh world
       const seed = Number(params.get('seed') ?? 12345);

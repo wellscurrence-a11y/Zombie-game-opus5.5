@@ -19,6 +19,7 @@ import { updateVision } from './sim/vision';
 import { placeItem, startFire } from './sim/world-actions';
 import { resetWorldSystems } from './sim/world-systems';
 import { S, WIN_CLOSED } from './world/world';
+import { angleDiff } from './core/math';
 import { build } from './sim/build';
 import { actionProgress, simStep, wake } from './sim/step';
 
@@ -305,20 +306,25 @@ export class Game implements Ctx {
         return;
       }
     }
-    // nearest door or fence in front
-    const fx = p.x + Math.cos(p.facing) * 0.8;
-    const fy = p.y + Math.sin(p.facing) * 0.8;
+    // nearest door, window or fence within reach, favouring the one you're facing
     let best: { i: number; d: number } | null = null;
-    for (let dy = -1; dy <= 1; dy++) {
-      for (let dx = -1; dx <= 1; dx++) {
-        const x = Math.floor(fx) + dx;
-        const y = Math.floor(fy) + dy;
+    const px = Math.floor(p.x);
+    const py = Math.floor(p.y);
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        const x = px + dx;
+        const y = py + dy;
         if (x < 0 || y < 0 || x >= w.w || y >= w.h) continue;
         const i = y * w.w + x;
         const st = w.struct[i];
         if (st !== S.Door && st !== S.FenceLow && st !== S.FenceHigh && st !== S.Window) continue;
-        const d = Math.hypot(x + 0.5 - p.x, y + 0.5 - p.y);
-        if (d < 1.7 && (!best || d < best.d)) best = { i, d };
+        const cx = Math.max(x, Math.min(p.x, x + 1));
+        const cy = Math.max(y, Math.min(p.y, y + 1));
+        const dist = Math.hypot(p.x - cx, p.y - cy);
+        if (dist > 1.1) continue;
+        const ang = Math.abs(angleDiff(p.facing, Math.atan2(y + 0.5 - p.y, x + 0.5 - p.x)));
+        const score = dist + ang * 0.35;
+        if (!best || score < best.d) best = { i, d: score };
       }
     }
     if (!best) return;

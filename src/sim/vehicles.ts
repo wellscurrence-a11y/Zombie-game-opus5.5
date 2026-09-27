@@ -16,7 +16,7 @@ import { realToGame } from './structures';
 import type { GameState, Vehicle, Zombie } from './types';
 import { startAction, type Ctx } from './use';
 import { colorName, driverDoor, inVehicle, VEH, vehClosest, vehCorners } from './vehicleSpecs';
-import { collides } from './worldq';
+import { collides, setVehicleGrid } from './worldq';
 import { hitZombie } from './combat';
 import type { Option } from './interact';
 
@@ -37,6 +37,7 @@ export function refreshVehOcc(s: GameState, pf: PathFinder): void {
   const occ = pf.vehOcc;
   occ.fill(0);
   const w = s.world;
+  setVehicleGrid(occ, w.w);
   for (const v of s.vehicles) {
     const spec = VEH[v.type];
     const c = Math.cos(v.heading);

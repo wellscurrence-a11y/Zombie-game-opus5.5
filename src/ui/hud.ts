@@ -204,7 +204,7 @@ export class Hud {
     const s = g.s;
     const h = g.hover;
     const inp = g.input;
-    if (!h || inp.overUi || h.kind === 'ground') {
+    if (!h || inp.overUi || h.kind === 'ground' || g.uiBlocking || s.player.dead || s.player.sleeping) {
       this.tip.style.display = 'none';
       return;
     }

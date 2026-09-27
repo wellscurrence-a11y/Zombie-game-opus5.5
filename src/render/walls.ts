@@ -62,7 +62,7 @@ class PieceSet {
     const mesh = new THREE.InstancedMesh(unitBox, this.mesh.material, cap);
     mesh.castShadow = this.mesh.castShadow;
     mesh.receiveShadow = true;
-    mesh.frustumCulled = false;
+    mesh.frustumCulled = this.mesh.frustumCulled;
     for (let i = 0; i < this.n; i++) {
       this.mesh.getMatrixAt(i, _m);
       mesh.setMatrixAt(i, _m);
@@ -113,11 +113,24 @@ const FENCE_COLORS = [0x7d6a55, 0x8f969a, 0xe8e4da, 0x8a6a48, 0x7d8388];
 const DOOR_WOOD = [0x6b4a32, 0x7a5638, 0x5a3f2c, 0x8a6a4a, 0x4f5b61, 0x6e2f28];
 const CURTAINS = [0x7a4b4b, 0x5c6b7a, 0x8a7b5a, 0x6a7a5a, 0xa89a82, 0x4f4f5f];
 
-export class WallLayer {
-  group = new THREE.Group();
+const RCH = 32;
+
+interface RenderChunk {
   solid: PieceSet;
   glass: PieceSet;
   chain: PieceSet;
+}
+
+export class WallLayer {
+  group = new THREE.Group();
+  /** Static pieces are split into 32x32-tile render chunks so off-screen walls are culled. */
+  rchunks: RenderChunk[] = [];
+  private rchW: number;
+  private mats: { solid: THREE.Material; glass: THREE.Material; chain: THREE.Material };
+  /** The chunk currently being filled by rebuildStatic. */
+  private solid!: PieceSet;
+  private glass!: PieceSet;
+  private chain!: PieceSet;
   dyn: PieceSet;
   dynGlass: PieceSet;
   /** Per-tile cut factor (0 = full, 1 = cut), animated. */
@@ -139,12 +152,20 @@ export class WallLayer {
     const solidMat = patchMaterial(new THREE.MeshLambertMaterial({ color: 0xffffff }), { ao: true });
     const glassMat = patchMaterial(new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.32, depthWrite: false }), {});
     const chainMat = patchMaterial(new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, depthWrite: false }), {});
-    this.solid = new PieceSet(solidMat, 40000);
-    this.glass = new PieceSet(glassMat, 2000, false);
-    this.chain = new PieceSet(chainMat, 4000, false);
+    this.mats = { solid: solidMat, glass: glassMat, chain: chainMat };
+    this.rchW = Math.ceil(w.w / RCH);
+    const nch = this.rchW * Math.ceil(w.h / RCH);
+    for (let k = 0; k < nch; k++) {
+      const ch: RenderChunk = { solid: new PieceSet(solidMat, 512), glass: new PieceSet(glassMat, 32, false), chain: new PieceSet(chainMat, 64, false) };
+      for (const ps of [ch.solid, ch.glass, ch.chain]) {
+        ps.mesh.frustumCulled = true;
+        this.group.add(ps.mesh);
+      }
+      this.rchunks.push(ch);
+    }
     this.dyn = new PieceSet(solidMat, 8000);
     this.dynGlass = new PieceSet(glassMat, 4000, false);
-    this.group.add(this.solid.mesh, this.glass.mesh, this.chain.mesh, this.dyn.mesh, this.dynGlass.mesh);
+    this.group.add(this.dyn.mesh, this.dynGlass.mesh);
     this.cut = new Float32Array(w.w * w.h);
     this.cutTarget = new Uint8Array(w.w * w.h);
     this.chunkW = Math.ceil(w.w / 8);
@@ -153,11 +174,17 @@ export class WallLayer {
     this.rebuildStatic();
   }
 
+  private chunkOf(x: number, y: number): RenderChunk {
+    return this.rchunks[Math.floor(y / RCH) * this.rchW + Math.floor(x / RCH)];
+  }
+
   rebuildStatic(): void {
     const w = this.w;
-    this.solid.reset();
-    this.glass.reset();
-    this.chain.reset();
+    for (const ch of this.rchunks) {
+      ch.solid.reset();
+      ch.glass.reset();
+      ch.chain.reset();
+    }
     this.refs = [];
     this.refStart.fill(-1);
     this.refCount.fill(0);
@@ -167,6 +194,10 @@ export class WallLayer {
         const i = y * w.w + x;
         const s = w.struct[i];
         if (s === S.None || s === S.Tree || s === S.Bush) continue;
+        const ch = this.chunkOf(x, y);
+        this.solid = ch.solid;
+        this.glass = ch.glass;
+        this.chain = ch.chain;
         const startSolid = this.solid.n;
         const startChain = this.chain.n;
         const startGlass = this.glass.n;
@@ -185,9 +216,14 @@ export class WallLayer {
     }
     // Re-apply existing cut state
     for (let i = 0; i < this.cut.length; i++) if (this.cut[i] > 0) this.applyTile(i);
-    this.solid.commit();
-    this.glass.commit();
-    this.chain.commit();
+    for (const ch of this.rchunks) {
+      for (const ps of [ch.solid, ch.glass, ch.chain]) {
+        ps.commit();
+        ps.mesh.visible = ps.n > 0;
+        if (ps.n > 0) ps.mesh.computeBoundingSphere();
+        if (ps.mesh.boundingSphere) ps.mesh.boundingSphere.radius += 3;
+      }
+    }
     this.dynDirty = true;
   }
 
@@ -477,16 +513,27 @@ export class WallLayer {
       if (nc === t) this.active.delete(i);
     }
     if (dynChanged) {
-      this.solid.commit();
-      this.chain.commit();
-      this.glass.commit();
+      for (const ch of this.touched) {
+        ch.solid.commit();
+        ch.chain.commit();
+        ch.glass.commit();
+      }
+      this.touched.clear();
       this.dynDirty = true;
     }
   }
 
+  private touched = new Set<RenderChunk>();
+
   private applyTile(i: number): void {
     const s = this.refStart[i];
     if (s < 0) return;
+    const w = this.w;
+    const ch = this.chunkOf(i % w.w, Math.floor(i / w.w));
+    this.solid = ch.solid;
+    this.glass = ch.glass;
+    this.chain = ch.chain;
+    this.touched.add(ch);
     const k = this.cut[i];
     for (let r = 0; r < this.refCount[i]; r++) {
       const ref = this.refs[s + r];

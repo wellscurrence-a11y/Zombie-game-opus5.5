@@ -60,7 +60,7 @@ export function updateZombies(s: GameState, rt: Runtime, pf: PathFinder, dt: num
   const p = s.player;
   const pt = playerTarget(s);
   const amb = ambient(s);
-  rt.pathBudget = 5;
+  rt.pathBudget = 3;
   // ---- hearing: process this step's noises
   for (const n of rt.noises) hear(s, rt, n);
   rt.noises.length = 0;
@@ -407,14 +407,22 @@ function walkTo(s: GameState, rt: Runtime, pf: PathFinder, z: Zombie, dt: number
   }
   let gx = z.tx;
   let gy = z.ty;
-  const direct = dist < 14 && straightWalkable(w, z.x, z.y, z.tx, z.ty, pf.vehOcc);
+  // far away: just head that way; plan a proper route once closer
+  const zz = z as Zombie & { dT?: number; dOk?: boolean; dTx?: number; dTy?: number };
+  if (zz.dT === undefined || rt.realTime - zz.dT > 0.3 || Math.abs((zz.dTx ?? 0) - z.tx) > 0.5 || Math.abs((zz.dTy ?? 0) - z.ty) > 0.5) {
+    zz.dT = rt.realTime;
+    zz.dTx = z.tx;
+    zz.dTy = z.ty;
+    zz.dOk = dist < 14 && straightWalkable(w, z.x, z.y, z.tx, z.ty, pf.vehOcc);
+  }
+  const direct = dist > 30 || !!zz.dOk;
   if (!direct) {
     const goalTile = Math.floor(z.ty) * w.w + Math.floor(z.tx);
     const pathGoal = z.path && z.path.length ? z.path[z.path.length - 1] : -1;
     const stale = !z.path || z.pathI >= z.path.length || (pathGoal !== goalTile && z.pathT > 1.5) || z.pathT > 6;
     if (stale && rt.pathBudget > 0) {
       rt.pathBudget--;
-      const path = pf.find(Math.floor(z.x), Math.floor(z.y), Math.floor(z.tx), Math.floor(z.ty), dist > 40 ? 5000 : 2500);
+      const path = pf.find(Math.floor(z.x), Math.floor(z.y), Math.floor(z.tx), Math.floor(z.ty), 2200);
       z.path = path;
       z.pathI = 0;
       z.pathT = 0;

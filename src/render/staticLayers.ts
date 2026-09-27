@@ -67,7 +67,7 @@ export class Ground {
 // ------------------------------------------------------------------ furniture
 
 interface FurnInst {
-  kind: FurnKind;
+  mesh: THREE.InstancedMesh;
   idx: number;
   id: number;
   tile: number;
@@ -77,9 +77,11 @@ interface FurnInst {
   h: number;
 }
 
+const FCH = 48;
+
 export class FurnitureLayer {
   group = new THREE.Group();
-  meshes = new Map<FurnKind, THREE.InstancedMesh>();
+  meshes: THREE.InstancedMesh[] = [];
   geos = new Map<FurnKind, THREE.BufferGeometry>();
   mat: THREE.MeshLambertMaterial;
   tall: FurnInst[] = [];
@@ -92,19 +94,22 @@ export class FurnitureLayer {
   }
   rebuild(): void {
     const w = this.w;
-    const byKind = new Map<FurnKind, number[]>();
+    // bucket by (render chunk, kind) so off-screen furniture is culled
+    const buckets = new Map<string, number[]>();
     for (const f of w.furniture) {
       if (f.gone) continue;
-      (byKind.get(f.kind) ?? byKind.set(f.kind, []).get(f.kind)!).push(f.id);
+      const key = `${Math.floor(f.y / FCH) * 100 + Math.floor(f.x / FCH)}|${f.kind}`;
+      (buckets.get(key) ?? buckets.set(key, []).get(key)!).push(f.id);
     }
-    for (const [, m] of this.meshes) {
+    for (const m of this.meshes) {
       this.group.remove(m);
       m.dispose();
     }
-    this.meshes.clear();
+    this.meshes = [];
     this.tall = [];
     this.byId.clear();
-    for (const [kind, ids] of byKind) {
+    for (const [key, ids] of buckets) {
+      const kind = key.split('|')[1] as FurnKind;
       let geo = this.geos.get(kind);
       if (!geo) {
         geo = furnitureGeometry(kind);
@@ -113,7 +118,6 @@ export class FurnitureLayer {
       const mesh = new THREE.InstancedMesh(geo, this.mat, ids.length);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
-      mesh.frustumCulled = false;
       const def = FURN[kind];
       ids.forEach((id, k) => {
         const f = w.furniture[id];
@@ -126,12 +130,14 @@ export class FurnitureLayer {
         mesh.setMatrixAt(k, _m);
         const v = 0.88 + hash01(f.x, f.y, 11) * 0.2;
         mesh.setColorAt(k, _c.setRGB(v, v, v));
-        const inst: FurnInst = { kind, idx: k, id, tile: f.y * w.w + f.x, x: cx, z: cz, ang, h: def.h };
+        const inst: FurnInst = { mesh, idx: k, id, tile: f.y * w.w + f.x, x: cx, z: cz, ang, h: def.h };
         this.byId.set(id, inst);
         if (def.h > 1.3 && kind !== 'lamp' && kind !== 'silo') this.tall.push(inst);
       });
       mesh.instanceMatrix.needsUpdate = true;
-      this.meshes.set(kind, mesh);
+      mesh.computeBoundingSphere();
+      if (mesh.boundingSphere) mesh.boundingSphere.radius += 2;
+      this.meshes.push(mesh);
       this.group.add(mesh);
     }
   }
@@ -140,14 +146,13 @@ export class FurnitureLayer {
     const touched = new Set<THREE.InstancedMesh>();
     for (const t of this.tall) {
       const k = cut[t.tile];
-      const mesh = this.meshes.get(t.kind)!;
       const sy = k > 0 ? 1 - k * (1 - 0.45 / t.h) : 1;
       _p.set(t.x, 0, t.z);
       _q.setFromAxisAngle(_y, t.ang);
       _s.set(1, sy, 1);
       _m.compose(_p, _q, _s);
-      mesh.setMatrixAt(t.idx, _m);
-      touched.add(mesh);
+      t.mesh.setMatrixAt(t.idx, _m);
+      touched.add(t.mesh);
     }
     for (const m of touched) m.instanceMatrix.needsUpdate = true;
   }

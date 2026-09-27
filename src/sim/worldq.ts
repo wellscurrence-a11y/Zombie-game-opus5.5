@@ -81,6 +81,29 @@ export function tileShape(w: World, i: number): Shape {
 
 const THIN_R = 0.05;
 
+/** Tiles covered by vehicles (shared with pathfinding) — lets collision skip the vehicle loop. */
+let vehGrid: Uint8Array | null = null;
+let vehGridW = 0;
+export function setVehicleGrid(g: Uint8Array, w: number): void {
+  vehGrid = g;
+  vehGridW = w;
+}
+
+function nearVehicle(px: number, py: number): boolean {
+  if (!vehGrid) return true;
+  const x0 = Math.floor(px) - 3;
+  const y0 = Math.floor(py) - 3;
+  for (let y = y0; y <= y0 + 6; y++) {
+    if (y < 0) continue;
+    const row = y * vehGridW;
+    for (let x = x0; x <= x0 + 6; x++) {
+      if (x < 0 || x >= vehGridW) continue;
+      if (vehGrid[row + x]) return true;
+    }
+  }
+  return false;
+}
+
 function circleBox(px: number, py: number, r: number, x0: number, y0: number, x1: number, y1: number): boolean {
   const cx = px < x0 ? x0 : px > x1 ? x1 : px;
   const cy = py < y0 ? y0 : py > y1 ? y1 : py;
@@ -124,6 +147,7 @@ export function collides(s: GameState, px: number, py: number, r: number, opts: 
       }
     }
   }
+  if (!nearVehicle(px, py)) return false;
   for (const v of s.vehicles) {
     if (v.id === opts.ignoreVehicle) continue;
     if (Math.abs(v.x - px) > 5 || Math.abs(v.y - py) > 5) continue;
