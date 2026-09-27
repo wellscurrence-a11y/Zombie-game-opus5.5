@@ -324,12 +324,16 @@ export interface Item {
   contents?: Item[];
   ammo?: number;
   usesLeft?: number;
-  /** For foraged food: whether it is known safe. */
+  /** For foraged food: whether it is actually safe to eat. */
   safe?: boolean;
+  /** Whether the survivor has identified it. */
+  known?: boolean;
   /** Battery charge for lights/radios. */
   charge?: number;
   /** Alarm clock countdown. */
   timer?: number;
+  /** Cooking progress (1 = cooked, 1.6 = burnt). */
+  heat?: number;
 }
 
 export interface UidSource {

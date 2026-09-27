@@ -111,9 +111,11 @@ export interface Player {
   downT: number;
   /** Seconds of a vault/climb animation. */
   climbT: number;
+  climbDur: number;
   climbFrom: [number, number];
   climbTo: [number, number];
   climbKind: string;
+  climbTile: number;
   aimT: number;
   reloadT: number;
   grabbedBy: number[];
@@ -160,6 +162,8 @@ export interface Zombie {
   lastSeenX: number;
   lastSeenY: number;
   lastSeenT: number;
+  /** Real seconds since this zombie last saw the survivor. */
+  sinceSeen: number;
   path: number[] | null;
   pathI: number;
   pathT: number;
@@ -203,6 +207,8 @@ export interface Corpse {
   outfit: number;
   kind: ZKind;
   items: Item[] | null;
+  /** Items the body carried (keys etc.), merged into the loot when searched. */
+  extra?: Item[];
   t: number;
   name?: string;
   wasPlayer?: boolean;
@@ -358,4 +364,8 @@ export interface GameState {
   stats: { hitsTaken: number; itemsLooted: number; distance: number; noisesMade: number };
   mapMarkers: { x: number; y: number; label: string }[];
   hasMap: boolean;
+  /** Tile -> game time last foraged (foraging depletes an area for a while). */
+  foraged: Record<number, number>;
+  /** Litres left in the gas station's underground tanks. */
+  stationFuel: number;
 }

@@ -10,6 +10,7 @@ export function emitNoise(s: GameState, rt: Runtime, n: NoiseEvent): void {
   const radius = n.radius * mask;
   if (radius <= 0.3) return;
   rt.noises.push({ ...n, radius });
+  if (Math.hypot(n.x - s.player.x, n.y - s.player.y) < 90 && rt.sfx.length < 64) rt.sfx.push({ ...n, radius });
   if (n.src === 'player') {
     s.stats.noisesMade++;
     if (radius >= 3) rt.effects.push({ kind: 'ring', x: n.x, y: n.y, t: rt.realTime, dur: 0.9, r: radius, color: radius > 15 ? 0xf0a060 : 0xe8e0c8 });

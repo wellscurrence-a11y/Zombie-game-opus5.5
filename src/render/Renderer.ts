@@ -101,6 +101,13 @@ export class Renderer {
     this.w = s.world;
     const w = s.world;
     for (const c of [...this.scene.children]) if (c.userData.world) this.scene.remove(c);
+    this.zombies = new ZombieLayer();
+    this.player = new PlayerModel();
+    this.corpses = new CorpseLayer();
+    this.vehicles = new VehicleLayer();
+    this.floor = new FloorItemLayer();
+    this.fx = new EffectsLayer();
+    this.walls?.group.clear();
     this.visData = new Uint8Array(w.w * w.h * 4);
     this.visCur = new Float32Array(w.w * w.h);
     for (let i = 0; i < w.w * w.h; i++) this.visData[i * 4 + 1] = w.explored[i] ? 255 : 0;
@@ -171,6 +178,15 @@ export class Renderer {
   setZoom(delta: number): void {
     this.zoom = clamp(this.zoom * (delta > 0 ? 1.12 : 1 / 1.12), 5, 32);
     this.updateProjection();
+  }
+
+  /** Project a world point (tile x, height, tile y) to CSS pixel coordinates. */
+  project(x: number, h: number, y: number): { sx: number; sy: number } {
+    const v = new THREE.Vector3(x, h, y).project(this.camera);
+    const el = this.gl.domElement;
+    const wpx = el.clientWidth || window.innerWidth;
+    const hpx = el.clientHeight || window.innerHeight;
+    return { sx: (v.x * 0.5 + 0.5) * wpx, sy: (-v.y * 0.5 + 0.5) * hpx };
   }
 
   /** Intersect the mouse ray with a horizontal plane. Returns world (x, z). */

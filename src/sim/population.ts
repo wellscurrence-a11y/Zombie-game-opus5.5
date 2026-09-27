@@ -21,7 +21,7 @@ export function newZombie(s: GameState, rng: Rng, x: number, y: number, kind: ZK
     timer: rng.range(0, 20),
     tx: x, ty: y, targetPri: 0,
     awareness: 0,
-    lastSeenX: 0, lastSeenY: 0, lastSeenT: -1,
+    lastSeenX: 0, lastSeenY: 0, lastSeenT: -1, sinceSeen: 999,
     path: null, pathI: 0, pathT: 0,
     downT: 0, staggerT: 0, attackT: 0,
     crawler,

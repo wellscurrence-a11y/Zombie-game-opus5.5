@@ -58,7 +58,7 @@ export function createPlayer(s: GameState, spec: SurvivorSpec, x: number, y: num
     x, y, facing: Math.PI / 2, vx: 0, vy: 0, stance: 'stand', running: false, inVehicle: -1,
     body: blankBody(), needs: blankNeeds(), xp, bookBoost: {}, magazines: [...(occ.mags ?? [])],
     inventory: [], primary: 0, worn: {}, bag: null, flashlight: false,
-    attackT: 0, attackDur: 0, attackHit: false, shoveT: 0, downT: 0, climbT: 0, climbFrom: [0, 0], climbTo: [0, 0], climbKind: '',
+    attackT: 0, attackDur: 0, attackHit: false, shoveT: 0, downT: 0, climbT: 0, climbDur: 0, climbFrom: [0, 0], climbTo: [0, 0], climbKind: '', climbTile: -1,
     aimT: 0, reloadT: 0, grabbedBy: [], sleeping: false, sleepQuality: 0, sleepUntil: 0,
     startT: s.time, kills: 0, dead: false, deathCause: '', lastHitT: -99, stepNoiseT: 0, carrying: -1, readingUid: 0,
   };
@@ -178,6 +178,8 @@ export function newGame(seed: number, spec: SurvivorSpec, settings: WorldSetting
     stats: { hitsTaken: 0, itemsLooted: 0, distance: 0, noisesMade: 0 },
     mapMarkers: [],
     hasMap: false,
+    foraged: {},
+    stationFuel: 1800,
   };
   for (const sp of gen.vehicles) s.vehicles.push(createVehicle(s.world, rng, s, s.vehicles.length, sp));
   removeOverlappingVehicles(s);

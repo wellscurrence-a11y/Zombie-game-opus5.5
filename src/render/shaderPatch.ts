@@ -211,7 +211,7 @@ export function patchMaterial<T extends THREE.Material>(mat: T, opts: PatchOpts 
         float known = max(vis.g, ${minVis});
         float lum = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));
         vec3 desat = mix(vec3(lum) * vec3(0.8, 0.86, 1.0), gl_FragColor.rgb, 0.3);
-        float mk = mix(0.2, 0.42, known) * (1.0 - uNight * 0.55);
+        float mk = mix(0.26, 0.5, known) * (1.0 - uNight * 0.5);
         vec3 hidden = desat * mk;
         hidden = mix(hidden, uFogColor, uFogAmt * 0.7);
         gl_FragColor.rgb = mix(hidden, gl_FragColor.rgb, seen);`

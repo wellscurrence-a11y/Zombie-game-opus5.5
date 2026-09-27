@@ -145,10 +145,8 @@ export interface LootContext {
   bldKind: string;
   roomType: string;
   containerKind: string;
-  /** Game hours since the outbreak began — ages fresh food. */
-  hoursSinceStart: number;
-  /** Refrigerators slow spoilage while they had power. */
-  chilled: boolean;
+  /** Effective hours fresh food has been ageing (refrigeration slows it). */
+  foodAge: number;
   abundance: number;
 }
 
@@ -204,10 +202,7 @@ function decorate(it: Item, rng: Rng, ctx: LootContext): void {
     it.cond = rng.range(0.6, 1);
     it.ammo = rng.chance(0.4) ? rng.int(0, d.firearm.mag) : 0;
   }
-  if (d.food?.spoil) {
-    const factor = ctx.chilled ? 0.35 : 1;
-    it.age = ctx.hoursSinceStart * factor + rng.range(0, 30);
-  }
+  if (d.food?.spoil) it.age = ctx.foodAge + rng.range(0, 30);
   if (d.id === 'waterBottle' || d.id === 'jug') {
     const storeBought = ctx.roomType === 'grocery' || ctx.roomType === 'gasstore' || ctx.containerKind === 'cooler' || ctx.bldKind === 'checkpoint' || ctx.bldKind === 'warehouse';
     if (storeBought || rng.chance(0.4)) {

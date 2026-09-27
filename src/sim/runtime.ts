@@ -62,6 +62,8 @@ export class Runtime {
   lightVersion = 0;
   fireLightT = 0;
   noises: NoiseEvent[] = [];
+  /** Sounds for the audio engine (consumed each frame). */
+  sfx: NoiseEvent[] = [];
   cues: SoundCue[] = [];
   effects: Effect[] = [];
   action: TimedAction | null = null;
@@ -97,6 +99,13 @@ export class Runtime {
   hurtFlash = 0;
   helicopterSound = 0;
   alarmSound = 0;
+  searchMode: 'careful' | 'quick' = 'careful';
+  /** UI modes that capture the next world click. */
+  mode: { kind: 'place'; uid: number } | { kind: 'throw'; uid: number } | { kind: 'build'; recipe: string } | null = null;
+  /** Containers the survivor has open in the loot panel. */
+  openContainers: string[] = [];
+  lootOpen = false;
+  wakeReason = '';
   constructor(s: GameState) {
     this.rng = new Rng(s.rng);
     const n = s.world.w * s.world.h;
