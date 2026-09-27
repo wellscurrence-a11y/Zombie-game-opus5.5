@@ -18,7 +18,7 @@ import { startAction, type Ctx } from './use';
 import { colorName, driverDoor, inVehicle, VEH, vehClosest, vehCorners } from './vehicleSpecs';
 import { collides, setVehicleGrid } from './worldq';
 import { hitZombie } from './combat';
-import type { Option } from './interact';
+import { trySleep, type Option } from './interact';
 
 export interface DriveInput {
   throttle: number;
@@ -460,7 +460,7 @@ export function vehicleActions(c: Ctx, v: Vehicle, openLoot: (key: string) => vo
       ensureLoot(s, v.glovebox);
       openLoot(`c${v.glovebox}`);
     } });
-    out.push({ label: 'Sleep in the seat', run: () => import('./interact').then((m) => m.trySleep(c, 'car')) });
+    out.push({ label: 'Sleep in the seat', run: () => trySleep(c, 'car') });
     out.push({ label: 'Get out', run: () => exitVehicle(c) });
     return { title, options: out, far: false };
   }

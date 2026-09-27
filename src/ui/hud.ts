@@ -200,7 +200,7 @@ export class Hud {
     }
     const wt = carriedWeight(p);
     const cap = capacity(p);
-    this.bc.innerHTML = `<div class="hotbar">${slots.join('')}</div><div class="bars"><span>Stamina</span><div class="bar end"><i style="width:${Math.round(p.needs.endurance * 100)}%"></i></div><span class="${wt > cap ? 'warn' : 'dim'}">${wt.toFixed(1)} / ${cap.toFixed(0)} kg</span><span class="dim">${p.stance === 'crouch' ? 'Crouched' : p.running ? 'Running' : 'Walking'}${held ? ` · ${esc(itemName(held))}` : ' · Bare hands'}</span></div>`;
+    this.bc.innerHTML = `<div class="hotbar" style="${p.inVehicle >= 0 ? 'visibility:hidden' : ''}">${slots.join('')}</div><div class="bars"><span>Stamina</span><div class="bar end"><i style="width:${Math.round(p.needs.endurance * 100)}%"></i></div><span class="${wt > cap ? 'warn' : 'dim'}">${wt.toFixed(1)} / ${cap.toFixed(0)} kg</span><span class="dim">${p.stance === 'crouch' ? 'Crouched' : p.running ? 'Running' : 'Walking'}${held ? ` · ${esc(itemName(held))}` : ' · Bare hands'}</span></div>`;
   }
 
   private updateTooltip(): void {

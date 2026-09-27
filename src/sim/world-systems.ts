@@ -264,9 +264,7 @@ export function resetWorldSystems(): void {
 }
 
 export function updateWorld(s: GameState, rt: Runtime, dt: number, hours: number): void {
-  const c = { s, rt };
   updateWeather(s, rt, hours);
-  updateCooking(c, hours);
   updateFires(s, rt, dt);
   updateCrops(s, hours, s.weather.rain);
   accum += dt;
@@ -288,6 +286,7 @@ function perSecond(s: GameState, rt: Runtime, dt: number): void {
   const w = s.world;
   const p = s.player;
   const hours = realToGame(s, dt);
+  updateCooking({ s, rt }, hours);
   // building alarms
   rt.alarmSound = 0;
   for (const b of w.buildings) {

@@ -99,17 +99,25 @@ function nearHeat(s: GameState): number {
   const p = s.player;
   const w = s.world;
   let heat = 0;
-  for (const f of w.furniture) {
-    if (f.gone || !f.on) continue;
-    if (f.kind !== 'campfire' && f.kind !== 'stove' && f.kind !== 'bbq') continue;
-    if (f.kind === 'stove' && !buildingPowered(s, f.bld)) continue;
-    const d = Math.hypot(f.x + 0.5 - p.x, f.y + 0.5 - p.y);
-    if (d < 4) heat = Math.max(heat, (4 - d) * 3);
-  }
-  for (const k of Object.keys(s.fires)) {
-    const i = Number(k);
-    const d = Math.hypot((i % w.w) + 0.5 - p.x, Math.floor(i / w.w) + 0.5 - p.y);
-    if (d < 5) heat = Math.max(heat, (5 - d) * 5);
+  const px = Math.floor(p.x);
+  const py = Math.floor(p.y);
+  for (let y = py - 4; y <= py + 4; y++) {
+    for (let x = px - 4; x <= px + 4; x++) {
+      if (x < 0 || y < 0 || x >= w.w || y >= w.h) continue;
+      const i = y * w.w + x;
+      const fi = w.furn[i];
+      if (fi >= 0) {
+        const f = w.furniture[fi];
+        if (f.on && (f.kind === 'campfire' || f.kind === 'bbq' || (f.kind === 'stove' && buildingPowered(s, f.bld)))) {
+          const d = Math.hypot(f.x + 0.5 - p.x, f.y + 0.5 - p.y);
+          if (d < 4) heat = Math.max(heat, (4 - d) * 3);
+        }
+      }
+      if (s.fires[i]) {
+        const d = Math.hypot(x + 0.5 - p.x, y + 0.5 - p.y);
+        if (d < 5) heat = Math.max(heat, (5 - d) * 5);
+      }
+    }
   }
   return heat;
 }

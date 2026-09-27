@@ -4,6 +4,8 @@ import type { NoiseEvent, Runtime } from './runtime';
 import type { GameState } from './types';
 import { hasTrait } from './traits';
 
+const lastRing: Record<string, number> = {};
+
 export function emitNoise(s: GameState, rt: Runtime, n: NoiseEvent): void {
   // rain and storms mask sound
   const mask = 1 - s.weather.rain * 0.28 - (s.weather.kind === 'storm' ? 0.1 : 0);
@@ -13,7 +15,12 @@ export function emitNoise(s: GameState, rt: Runtime, n: NoiseEvent): void {
   if (Math.hypot(n.x - s.player.x, n.y - s.player.y) < 90 && rt.sfx.length < 64) rt.sfx.push({ ...n, radius });
   if (n.src === 'player') {
     s.stats.noisesMade++;
-    if (radius >= 3) rt.effects.push({ kind: 'ring', x: n.x, y: n.y, t: rt.realTime, dur: 0.9, r: radius, color: radius > 15 ? 0xf0a060 : 0xe8e0c8 });
+    const periodic = n.kind === 'engine' || n.kind === 'step' || n.kind === 'run';
+    const last = lastRing[n.kind] ?? -99;
+    if (radius >= 3 && (!periodic || rt.realTime - last > (n.kind === 'engine' ? 3 : 0))) {
+      lastRing[n.kind] = rt.realTime;
+      rt.effects.push({ kind: 'ring', x: n.x, y: n.y, t: rt.realTime, dur: 0.9, r: radius, color: radius > 15 ? 0xf0a060 : 0xe8e0c8 });
+    }
   } else if (n.label) {
     // Did the survivor hear it?
     const p = s.player;
