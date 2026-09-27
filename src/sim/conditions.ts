@@ -46,7 +46,7 @@ export function conditions(s: GameState, rt: Runtime): Condition[] {
   add('stress', ['Stressed', 'Anxious', 'Breaking down'], lv(n.stress, [0.45, 0.65, 0.85]), 'Rest, eat well, read, sleep somewhere safe.');
   add('pain', ['Aching', 'In pain', 'Severe pain', 'Agony'], lv(pain(p), [0.1, 0.3, 0.55, 0.8]), 'Painkillers help. Pain slows everything and ruins sleep.');
   add('cold', ['Chilly', 'Cold', 'Freezing', 'Hypothermic'], lv(37 - n.temp, [0.5, 1, 1.5, 2]), 'Get dry, get warm: clothes, shelter, fire.');
-  add('hot', ['Warm', 'Overheating', 'Heatstroke'], lv(n.temp - 37, [0.8, 1.5, 2.2]), 'Shed layers, drink water, get out of the sun.');
+  add('hot', ['Warm', 'Overheating', 'Heatstroke'], lv(n.temp - 37, [1, 1.7, 2.3]), 'Shed layers, drink water, get out of the sun.');
   add('wet', ['Damp', 'Wet', 'Soaked'], lv(n.wet, [0.15, 0.4, 0.7]), 'Wet clothes steal your body heat.');
   add('sick', ['Queasy', 'Nauseous', 'Very sick', 'Deathly ill'], lv(n.sick, [0.15, 0.4, 0.65, 0.85]), n.sickCause ? `From ${n.sickCause}. Rest and drink clean water.` : 'Rest and drink clean water.');
   add('coldIll', ['Sniffles', 'Head cold', 'Flu'], lv(n.cold, [0.2, 0.45, 0.7]), 'Coughing and sneezing make noise. Stay warm and dry.');

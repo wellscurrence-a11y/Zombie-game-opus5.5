@@ -1,29 +1,26 @@
-import { timeScale } from './core/time';
 import { Input } from './input';
 import { Renderer, type Hover } from './render/Renderer';
-import { killPlayer, updateBody } from './sim/body';
-import { startReload, updateCombat } from './sim/combat';
+import { startReload } from './sim/combat';
 import { def } from './sim/items';
-import { placeFurniture, toggleDoor, startClimb, toggleRoomLight, trySleep, updateClimb, type Target } from './sim/interact';
+import { placeFurniture, toggleDoor, startClimb, toggleRoomLight, trySleep, type Target } from './sim/interact';
 import { locate, removeItem } from './sim/inventory';
 import { computeLights } from './sim/lighting';
 import { chronicle, log, note } from './sim/log';
 import { emitNoise } from './sim/noise';
 import { PathFinder } from './sim/path';
-import { updatePlayerMovement, type Controls } from './sim/player';
+import type { Controls } from './sim/player';
 import { rebuildZGrid, Runtime } from './sim/runtime';
 import { lvl } from './sim/skills';
 import { breakWindow } from './sim/structures';
 import type { GameState } from './sim/types';
 import type { Ctx } from './sim/use';
-import { exitVehicle, refreshVehOcc, startEngine, updateVehicles, type DriveInput } from './sim/vehicles';
+import { exitVehicle, refreshVehOcc, startEngine, type DriveInput } from './sim/vehicles';
 import { updateVision } from './sim/vision';
 import { placeItem, startFire } from './sim/world-actions';
-import { resetWorldSystems, updateWorld } from './sim/world-systems';
-import { updateZombies } from './sim/zombies';
+import { resetWorldSystems } from './sim/world-systems';
 import { S, WIN_CLOSED } from './world/world';
-import { hasTrait } from './sim/traits';
 import { build } from './sim/build';
+import { actionProgress, simStep, wake } from './sim/step';
 
 export interface GameHooks {
   onDeath?: (g: Game) => void;
@@ -267,111 +264,20 @@ export class Game implements Ctx {
   }
 
   step(dt: number, realDt: number, first: boolean): void {
-    const s = this.s;
-    const rt = this.rt;
-    const p = s.player;
-    const hours = (dt * timeScale(s.settings.dayLength)) / 3600;
-    s.time += hours;
-    rebuildZGrid(s, rt);
-    const heardBefore = rt.heard.length;
-    if (!p.dead) {
-      if (p.climbT > 0) updateClimb(this, dt);
-      else updatePlayerMovement(s, rt, this.controls, dt);
-      this.updateAction(dt);
-    }
-    updateVehicles(s, rt, this.pf, p.inVehicle >= 0 ? this.drive : null, dt);
-    updateCombat(s, rt, this.controls, dt, first && !this.uiBlocking);
-    if (!first) {
-      this.controls.attack = false;
-      this.controls.attackReleased = false;
-      this.controls.shove = false;
-    }
-    updateZombies(s, rt, this.pf, dt);
-    updateBody(s, rt, hours, realDt);
-    updateWorld(s, rt, dt, hours);
-    updateVision(s, rt);
-    if (rt.lightDirty) computeLights(s, rt);
-    // danger drops time back to normal
-    if (rt.speed > 1 && (rt.threat > 0 || rt.closestZombie < 8)) {
-      rt.speed = 1;
-      log(s, 'You sense movement nearby. Time slows back down.', 'warn');
-    }
-    if (p.sleeping) this.sleepChecks(heardBefore);
-    else if (rt.heard.length > heardBefore && rt.speed > 1) {
-      const h = rt.heard[rt.heard.length - 1];
-      if (Math.hypot(h.x - p.x, h.y - p.y) < 30) rt.speed = 1;
-    }
-    if (p.body.health <= 0 && !p.dead) killPlayer(s, rt, 'Succumbed to injuries');
+    simStep(this, dt, realDt, first, !this.uiBlocking);
   }
 
-  private sleepChecks(heardBefore: number): void {
-    const s = this.s;
-    const rt = this.rt;
-    const p = s.player;
-    const n = p.needs;
-    if (n.fatigue <= 0.02) return this.wake('You wake up rested.');
-    if (n.hunger > 0.9 || n.thirst > 0.9) return this.wake('Hunger and thirst wake you.');
-    if (p.grabbedBy.length || p.lastHitT > s.time - 0.01) return this.wake('You wake to hands grabbing at you!');
-    const light = hasTrait(p.traits, 'lightSleeper');
-    const heavy = hasTrait(p.traits, 'heavySleeper');
-    for (let k = heardBefore; k < rt.heard.length; k++) {
-      const h = rt.heard[k];
-      const d = Math.hypot(h.x - p.x, h.y - p.y);
-      const threshold = light ? 1.6 : heavy ? 0.45 : 1;
-      if (d < h.loud * threshold) return this.wake(`${h.label} wakes you.`);
-    }
-    if (rt.wakeReason) return this.wake(rt.wakeReason);
-    if (rt.closestZombie < (light ? 6 : heavy ? 1.5 : 3)) return this.wake('Something shuffles right next to you. You jolt awake.');
-  }
+  onWake = (): void => {
+    this.hooks.onSave?.(this);
+  };
 
   wake(reason: string): void {
-    const p = this.s.player;
-    if (!p.sleeping) return;
-    p.sleeping = false;
-    this.rt.wakeReason = '';
-    this.rt.speed = 1;
-    log(this.s, reason, reason.includes('rested') ? 'good' : 'warn');
-    this.hooks.onSave?.(this);
-  }
-
-  private updateAction(dt: number): void {
-    const rt = this.rt;
-    const s = this.s;
-    const a = rt.action;
-    if (!a) return;
-    const moving = Math.hypot(this.controls.moveX, this.controls.moveY) > 0.1;
-    if (a.cancelOnMove && moving) {
-      a.onCancel?.();
-      rt.action = null;
-      return;
-    }
-    if (s.player.grabbedBy.length || s.player.downT > 0) {
-      a.onCancel?.();
-      rt.action = null;
-      return;
-    }
-    a.t += dt;
-    a.onTick?.(dt);
-    if (a.noise) {
-      a.noise.acc += dt;
-      if (a.noise.acc >= a.noise.every) {
-        a.noise.acc = 0;
-        emitNoise(s, rt, { x: s.player.x, y: s.player.y, radius: a.noise.radius, kind: a.noise.kind, src: 'player' });
-      }
-    }
-    const done = a.gameHours ? s.time - (a.startT ?? s.time) >= a.gameHours : a.t >= a.dur;
-    if (done) {
-      rt.action = null;
-      a.onDone();
-    }
+    wake(this, reason);
   }
 
   /** Progress 0..1 of the current action. */
   actionProgress(): number {
-    const a = this.rt.action;
-    if (!a) return 0;
-    if (a.gameHours) return Math.min(1, (this.s.time - (a.startT ?? this.s.time)) / a.gameHours);
-    return Math.min(1, a.t / a.dur);
+    return actionProgress(this.s, this.rt);
   }
 
   /** E: do the obvious thing with what's under the cursor, or the nearest door/window. */

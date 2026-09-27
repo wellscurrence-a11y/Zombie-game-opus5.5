@@ -147,9 +147,9 @@ export function updateBody(s: GameState, rt: Runtime, hours: number, realDt: num
   const heat = nearHeat(s);
   n.wet -= hours * (indoors ? 0.3 : 0.12) * (1 + heat * 0.3) * (s.weather.rain > 0.05 && !indoors ? 0 : 1);
   n.wet = clamp(n.wet, 0, 1);
-  let eff = outsideTemp(s) + (indoors ? 6 : 0) + ins * 1.7 - n.wet * 9 + heat + (sleeping && p.sleepQuality > 0.6 ? 4 : 0) + (p.running ? 4 : 0);
+  let eff = outsideTemp(s) + (indoors ? 6 : 0) + ins * 2 - n.wet * 10 + heat + (sleeping && p.sleepQuality > 0.6 ? 4 : 0) + (p.running ? 4 : 0);
   if (!indoors) eff -= s.weather.wind * 4;
-  const target = 37 + clamp((eff - 21) * 0.09, -4.5, 3.2);
+  const target = 37 + clamp((eff - 25) * 0.08, -4.5, 2.8);
   n.temp += (target - n.temp) * Math.min(1, hours * 0.6);
   if (n.temp < 36 && n.wet > 0.3) {
     n.cold = clamp(n.cold + hours * 0.02, 0, 1);
@@ -191,17 +191,20 @@ export function updateBody(s: GameState, rt: Runtime, hours: number, realDt: num
     if (inj.type === 'scratch' && s.time - inj.t > 0.6) inj.bleed *= Math.max(0, 1 - hours * 3);
     if (inj.bandaged) {
       inj.bandageAge += hours;
-      if (bl > 0.001 && inj.bandageAge > 8 / (1 + inj.bleed * 40)) inj.dirtyBandage = true;
+      if (bl > 0.001 && inj.bandageAge > 10 / (1 + inj.bleed * 25)) {
+        if (!inj.dirtyBandage) log(s, `The bandage on your ${PART_NAMES[inj.part]} is soaked through. Change it.`, 'warn');
+        inj.dirtyBandage = true;
+      }
     }
     // infection risk for open wounds
     if (OPEN_WOUNDS.includes(inj.type) && inj.heal < 0.8) {
       const age = s.time - inj.t;
       let risk = 0;
-      if (!inj.disinfected && age > 2) risk = inj.bandaged ? (inj.dirtyBandage ? 0.035 : 0.012) : 0.028;
-      if (inj.glass) risk += 0.02;
-      if (inj.type === 'bite') risk += 0.01;
-      if (inj.disinfected && inj.dirtyBandage) risk = 0.012;
-      if (risk > 0) inj.infection += risk * hours * (0.6 + inj.severity);
+      if (!inj.disinfected && age > 2) risk = inj.bandaged ? (inj.dirtyBandage ? 0.016 : 0.004) : 0.012;
+      if (inj.glass) risk += 0.01;
+      if (inj.type === 'bite') risk += 0.005;
+      if (inj.disinfected && inj.dirtyBandage) risk = 0.006;
+      if (risk > 0) inj.infection += risk * hours * (0.5 + inj.severity);
     }
     if (n.antibiotic > 0) inj.infection -= hours * 0.07;
     if (inj.disinfected && inj.infection < 0.3) inj.infection -= hours * 0.01;
@@ -235,8 +238,9 @@ export function updateBody(s: GameState, rt: Runtime, hours: number, realDt: num
         chronicle(s, 'Fever symptoms began.', 5);
         note(s, 'fever');
       }
-      if (rt.rng.chance(hours * 1.5 * b.feverLevel)) {
-        n.sick = clamp(n.sick + 0.2, 0, 1);
+      if (rt.rng.chance(hours * 0.5 * b.feverLevel)) {
+        n.sick = clamp(n.sick + 0.12, 0, 0.65);
+        n.thirst = clamp(n.thirst + 0.08, 0, 1);
         log(s, 'You retch violently.', 'danger');
         emitNoise(s, rt, { x: p.x, y: p.y, radius: 6, kind: 'vomit', src: 'player' });
       }
@@ -252,7 +256,7 @@ export function updateBody(s: GameState, rt: Runtime, hours: number, realDt: num
   let maxInf = 0;
   for (const inj of b.injuries) maxInf = Math.max(maxInf, inj.infection);
   if (maxInf > 0.45) drain += (maxInf - 0.45) * 22 + (maxInf >= 1 ? 25 : 0);
-  if (b.feverLevel > 0) drain += b.feverLevel * b.feverLevel * 28;
+  if (b.feverLevel > 0) drain += b.feverLevel * b.feverLevel * 20;
   if (n.hunger >= 0.95) drain += 2.5;
   if (n.thirst >= 0.95) drain += 7;
   if (n.temp < 35) drain += (35 - n.temp) * 9;
