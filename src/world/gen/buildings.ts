@@ -66,7 +66,7 @@ function frontWindows(f: Frame, skip: Set<number>, big: boolean, step = 1): void
 
 function addExtra(g: Gen, containerId: number, id: string, opts: Parameters<typeof makeItem>[2] = {}): void {
   if (containerId < 0) return;
-  (g.extras[containerId] ??= []).push(makeItem(g.uid, id, opts));
+  (g.w.containers[containerId].extra ??= []).push(makeItem(g.uid, id, opts));
 }
 
 /** Put a building's key somewhere inside it (kitchen counter, desk, etc.). */

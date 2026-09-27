@@ -122,6 +122,8 @@ export interface Container {
   x: number;
   y: number;
   searched: boolean;
+  /** Guaranteed items (keys etc.) merged in when the container is first opened. */
+  extra?: import('../sim/items').Item[];
 }
 
 export type FurnKind =

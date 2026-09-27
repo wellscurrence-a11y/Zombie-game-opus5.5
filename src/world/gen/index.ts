@@ -11,7 +11,6 @@ import {
   genApartment, genAutoRepair, genBar, genBarn, genCabin, genChurch, genClinic, genDiner, genFactory, genGasStation,
   genGrocery, genHardware, genHouse, genMotel, genOffice, genPharmacy, genPolice, genShed, genTent, genWarehouse, hideKey, outdoor,
 } from './buildings';
-import type { Item } from '../../sim/items';
 
 export const VX = [40, 92, 144, 196, 248];
 export const HY = [52, 100, 148, 196, 244];
@@ -24,7 +23,6 @@ export const HIGHWAY = { x0: 12, x1: 22 };
 export interface GenResult {
   world: World;
   vehicles: VehicleSpawn[];
-  extras: Record<number, Item[]>;
   houses: number[];
   quietHouses: number[];
   nextUid: number;
@@ -32,7 +30,7 @@ export interface GenResult {
 
 export function generateWorld(seed: number): GenResult {
   const w = createWorld(MAP_W, MAP_H, seed);
-  const g: Gen = { w, rng: new Rng(seed ^ 0x51f15e), vehicles: [], extras: {}, uid: { nextUid: 1 } };
+  const g: Gen = { w, rng: new Rng(seed ^ 0x51f15e), vehicles: [], uid: { nextUid: 1 } };
   const houses: number[] = [];
   const quiet: number[] = [];
 
@@ -49,7 +47,7 @@ export function generateWorld(seed: number): GenResult {
       w.landmarks.push({ name: b.name, x: (b.x0 + b.x1) / 2, y: (b.y0 + b.y1) / 2, bld: b.id });
     }
   }
-  return { world: w, vehicles: g.vehicles, extras: g.extras, houses, quietHouses: quiet, nextUid: g.uid.nextUid };
+  return { world: w, vehicles: g.vehicles, houses, quietHouses: quiet, nextUid: g.uid.nextUid };
 }
 
 // ------------------------------------------------------------------ helpers
@@ -74,7 +72,8 @@ function fill(w: World, x0: number, y0: number, x1: number, y1: number, gr: G, z
   for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) setG(w, x, y, gr, zone);
 }
 
-function fence(w: World, x0: number, y0: number, x1: number, y1: number, kind: S.FenceLow | S.FenceHigh, gaps: [number, number][] = []): void {
+/** Fence styles (stored in structRef): 0 wood privacy, 1 chain-link, 2 picket, 3 rail, 4 bridge railing. */
+function fence(w: World, x0: number, y0: number, x1: number, y1: number, kind: S.FenceLow | S.FenceHigh, gaps: [number, number][] = [], style = kind === S.FenceHigh ? 0 : 2): void {
   for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) {
     for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) {
       if (!inB(w, x, y)) continue;
@@ -84,6 +83,7 @@ function fence(w: World, x0: number, y0: number, x1: number, y1: number, kind: S
       const gr = w.ground[i];
       if (gr === G.Road || gr === G.Sidewalk || gr === G.Water || gr === G.Parking) continue;
       w.struct[i] = kind;
+      w.structRef[i] = style;
     }
   }
 }
@@ -186,6 +186,7 @@ function roads(g: Gen): void {
         if (Math.abs(y - yc) <= 3.2) {
           w.ground[y * w.w + x] = G.Bridge;
           w.struct[y * w.w + x] = S.FenceLow;
+          w.structRef[y * w.w + x] = 4;
         }
       }
       if (w.ground[y * w.w + x] === G.Grass) setG(w, x, y, G.Gravel);
@@ -358,10 +359,10 @@ function industrialFence(g: Gen, b: BlockRect): void {
   const w = g.w;
   const gaps: [number, number][] = [];
   for (let x = b.x0 + 18; x <= b.x0 + 24; x++) gaps.push([x, b.y0]);
-  fence(w, b.x0, b.y0, b.x1, b.y0, S.FenceHigh, gaps);
-  fence(w, b.x0, b.y1, b.x1, b.y1, S.FenceHigh);
-  fence(w, b.x0, b.y0, b.x0, b.y1, S.FenceHigh);
-  fence(w, b.x1, b.y0, b.x1, b.y1, S.FenceHigh);
+  fence(w, b.x0, b.y0, b.x1, b.y0, S.FenceHigh, gaps, 1);
+  fence(w, b.x0, b.y1, b.x1, b.y1, S.FenceHigh, [], 1);
+  fence(w, b.x0, b.y0, b.x0, b.y1, S.FenceHigh, [], 1);
+  fence(w, b.x1, b.y0, b.x1, b.y1, S.FenceHigh, [], 1);
 }
 
 function parkingLot(g: Gen, x0: number, y0: number, x1: number, y1: number, dir: 'h' | 'v', police = false): void {
@@ -625,10 +626,10 @@ function countryside(g: Gen): void {
       }
     }
     const gate: [number, number][] = [[Math.floor((x0 + x1) / 2), y0 - 1], [Math.floor((x0 + x1) / 2) + 1, y0 - 1]];
-    fence(w, x0 - 1, y0 - 1, x1 + 1, y0 - 1, S.FenceLow, gate);
-    fence(w, x0 - 1, y1 + 1, x1 + 1, y1 + 1, S.FenceLow);
-    fence(w, x0 - 1, y0 - 1, x0 - 1, y1 + 1, S.FenceLow);
-    fence(w, x1 + 1, y0 - 1, x1 + 1, y1 + 1, S.FenceLow);
+    fence(w, x0 - 1, y0 - 1, x1 + 1, y0 - 1, S.FenceLow, gate, 3);
+    fence(w, x0 - 1, y1 + 1, x1 + 1, y1 + 1, S.FenceLow, [], 3);
+    fence(w, x0 - 1, y0 - 1, x0 - 1, y1 + 1, S.FenceLow, [], 3);
+    fence(w, x1 + 1, y0 - 1, x1 + 1, y1 + 1, S.FenceLow, [], 3);
   }
   // --- cabins
   roadV(w, 95, 24, HY[0] - 3, false, ZONE_FOREST, 3, true);

@@ -4,7 +4,6 @@ import {
   G, S, type Building, type BuildingKind, type DoorKind, type FurnKind, type RoofPart, type Room, type RoomType, type World,
   WIN_CLOSED, inB,
 } from '../world';
-import type { Item } from '../../sim/items';
 
 export interface VehicleSpawn {
   x: number;
@@ -23,8 +22,6 @@ export interface Gen {
   w: World;
   rng: Rng;
   vehicles: VehicleSpawn[];
-  /** Guaranteed items queued for specific containers (container id -> items). */
-  extras: Record<number, Item[]>;
   uid: { nextUid: number };
 }
 

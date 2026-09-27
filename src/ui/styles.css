@@ -1,0 +1,20 @@
+:root {
+  --bg: #0b0d0f;
+  --panel: rgba(16, 18, 20, 0.92);
+  --panel-2: rgba(28, 31, 34, 0.95);
+  --line: rgba(220, 210, 190, 0.14);
+  --text: #d8d2c4;
+  --dim: #8f897c;
+  --accent: #c9a45a;
+  --danger: #c4513f;
+  --warn: #d09a3a;
+  --good: #7fa36a;
+  --radio: #7aa3b8;
+  --font: 'IBM Plex Mono', ui-monospace, monospace;
+  --title: 'Oswald', 'Arial Narrow', sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 13px; }
+#view { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+#ui { position: fixed; inset: 0; pointer-events: none; }
+#ui .interactive, #ui button, #ui input, #ui select { pointer-events: auto; }
