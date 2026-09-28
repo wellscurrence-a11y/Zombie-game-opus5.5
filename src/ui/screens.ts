@@ -286,7 +286,7 @@ export function settingsScreen(root: HTMLElement, prefs: Prefs, onSave: (p: Pref
   const sc = screen(root);
   sc.innerHTML = `<div class="menu"><h1 style="font-size:32px;color:#e7dcc4">Settings</h1>
   <div class="field" style="margin-top:14px"><label>Shadows</label><select id="sh"><option value="1">On</option><option value="0">Off (faster)</option></select></div>
-  <div class="field"><label>Render resolution</label><select id="pr"><option value="1">Normal</option><option value="0.75">Reduced (faster)</option><option value="2">High (sharper)</option></select></div>
+  <div class="field"><label>Render resolution</label><select id="pr"><option value="1">Normal</option><option value="0.75">Reduced (faster)</option><option value="0.5">Low (fastest, for Chromebooks)</option><option value="2">High (sharper)</option></select></div>
   <div class="field"><label>Volume</label><input id="vol" type="range" min="0" max="1" step="0.05" value="${prefs.volume}"></div>
   <div style="display:flex;gap:8px"><button class="primary" id="save">Save</button><button id="close">Back</button></div></div>`;
   (sc.querySelector('#sh') as HTMLSelectElement).value = prefs.shadows ? '1' : '0';
