@@ -246,38 +246,86 @@ export function brokenArm(s: GameState): boolean {
     || s.player.body.injuries.some((i) => i.type === 'fracture' && (i.part === 'lArm' || i.part === 'rArm') && i.heal < 0.6);
 }
 
-function stomTarget(s: GameState, rt: Runtime): Zombie | null {
+/** A zombie on the ground close enough to stomp: in front of you, or right at your feet. */
+export function stompTarget(s: GameState, rt: Runtime): Zombie | null {
   const p = s.player;
   let best: Zombie | null = null;
-  let bd = 1.15;
-  for (const z of zombiesNear(s, rt, p.x, p.y, 1.3, tmp)) {
-    if (z.state !== 'down' && !z.crawler) continue;
+  let bs = Infinity;
+  for (const z of zombiesNear(s, rt, p.x, p.y, 1.5, tmp)) {
+    if ((z.state !== 'down' && !z.crawler) || z.hp <= 0) continue;
     const d = Math.hypot(z.x - p.x, z.y - p.y);
     const off = Math.abs(angleDiff(p.facing, Math.atan2(z.y - p.y, z.x - p.x)));
-    if (off < 1.0 && d < bd) {
-      bd = d;
+    if (d > 1.4 || (off > 1.7 && d > 0.8)) continue;
+    if (!reachClear(s.world, p.x, p.y, z.x, z.y)) continue;
+    const score = d + off * 0.4;
+    if (score < bs) {
+      bs = score;
       best = z;
     }
   }
   return best;
 }
 
+/** A standing zombie right in front of you (what a shove would hit). */
+function shoveTarget(s: GameState, rt: Runtime): Zombie | null {
+  const p = s.player;
+  for (const z of zombiesNear(s, rt, p.x, p.y, 1.35, tmp)) {
+    if (z.hp <= 0 || z.state === 'down' || z.crawler) continue;
+    if (Math.abs(angleDiff(p.facing, Math.atan2(z.y - p.y, z.x - p.x))) < 1.15 && reachClear(s.world, p.x, p.y, z.x, z.y)) return z;
+  }
+  return null;
+}
+
+/**
+ * Space: shove a standing zombie away — or, if one is already on the ground and nothing is on its feet in
+ * front of you (or you're held), stomp on it.
+ */
+export function shoveOrStomp(s: GameState, rt: Runtime): void {
+  const p = s.player;
+  if (!p.grabbedBy.length && !shoveTarget(s, rt) && stompTarget(s, rt)) startStomp(s, rt);
+  else playerShove(s, rt);
+}
+
+function startStomp(s: GameState, rt: Runtime): void {
+  const p = s.player;
+  if (p.attackT > 0 || p.shoveT > 0 || p.grabbedBy.length || p.downT > 0 || p.climbT > 0) return;
+  const z = stompTarget(s, rt);
+  if (!z) return;
+  p.facing = Math.atan2(z.y - p.y, z.x - p.x);
+  p.attackT = 0.5;
+  p.attackDur = 0.5;
+  p.attackHit = false;
+  stompPending = z.id;
+  stompKick = true;
+  const cost = 0.025 * (1.3 - lvl(p, 'fitness') * 0.04);
+  p.needs.endurance = Math.max(0, p.needs.endurance - cost);
+  if (rt.action) {
+    rt.action.onCancel?.();
+    rt.action = null;
+  }
+}
+
 let stompPending: number | null = null;
+/** The pending ground strike is a boot, not the weapon in hand. */
+let stompKick = false;
 
 export function startMelee(s: GameState, rt: Runtime): void {
   const p = s.player;
   if (p.attackT > 0 || p.shoveT > 0 || p.grabbedBy.length || p.downT > 0 || p.climbT > 0) return;
   const { stats } = weaponOf(s);
-  const ground = stomTarget(s, rt);
+  // a zombie on the ground beats one on its feet only if nothing standing is right in front of you
+  const ground = shoveTarget(s, rt) ? null : stompTarget(s, rt);
   if (!stats && !ground) {
     playerShove(s, rt);
     return;
   }
-  const t = ground && !stats ? 0.55 : swingTime(s);
+  if (ground) p.facing = Math.atan2(ground.y - p.y, ground.x - p.x);
+  const t = ground && !stats ? 0.5 : swingTime(s);
   p.attackT = t;
   p.attackDur = t;
   p.attackHit = false;
   stompPending = ground ? ground.id : null;
+  stompKick = !!ground && !stats;
   const cost = (stats ? stats.stam : 0.025) * (1.3 - lvl(p, 'fitness') * 0.04);
   p.needs.endurance = Math.max(0, p.needs.endurance - cost);
   p.needs.fatigue += cost * 0.04;
@@ -299,14 +347,21 @@ function resolveMelee(s: GameState, rt: Runtime): void {
   if (stompPending !== null) {
     const z = s.zombies.find((zz) => zz.id === stompPending);
     stompPending = null;
-    if (z && z.hp > 0 && Math.hypot(z.x - p.x, z.y - p.y) < 1.4 && reachClear(s.world, p.x, p.y, z.x, z.y)) {
-      const base = stats ? stats.dmg * 1.5 : 0.85 + str * 0.06;
-      const crit = rng.chance((stats ? stats.crit + 0.2 : 0.3) + (stats ? lvl(p, stats.skill) * 0.02 : 0));
+    const kick = stompKick;
+    stompKick = false;
+    const ws = kick ? null : stats;
+    if (z && z.hp > 0 && Math.hypot(z.x - p.x, z.y - p.y) < 1.6 && reachClear(s.world, p.x, p.y, z.x, z.y)) {
+      const base = ws ? ws.dmg * 1.5 : 0.95 + str * 0.07;
+      const crit = rng.chance((ws ? ws.crit + 0.2 : 0.35) + (ws ? lvl(p, ws.skill) * 0.02 : 0));
       const dmg = base * (0.7 + 0.3 * vig) * (crit ? 2.3 : 1) * rng.range(0.85, 1.15);
       hitZombie(s, rt, z, dmg, 0, crit, true);
-      emitNoise(s, rt, { x: z.x, y: z.y, radius: stats ? stats.noise : 5, kind: 'hit', src: 'player' });
-      if (item && stats) wearWeapon(s, rt, item, stats.dur);
-      addXp(p, stats ? stats.skill : 'strength', 3);
+      // a boot or a blow to the head keeps it down a moment longer
+      if (z.hp > 0 && z.state === 'down') z.downT = Math.max(z.downT, 1.2);
+      if (z.hp > 0 && !crit) log(s, kick ? 'You stomp on it. It\'s still moving.' : 'You strike it on the ground. It\'s still moving.', 'warn');
+      emitNoise(s, rt, { x: z.x, y: z.y, radius: ws ? ws.noise : 5, kind: 'hit', src: 'player' });
+      if (item && ws) wearWeapon(s, rt, item, ws.dur);
+      addXp(p, ws ? ws.skill : 'strength', 3);
+      note(s, 'stomp');
       return;
     }
   }
@@ -671,7 +726,7 @@ export function updateCombat(s: GameState, rt: Runtime, c: Controls, dt: number,
     p.aimT = 0;
     return;
   }
-  if (c.shove) playerShove(s, rt);
+  if (c.shove) shoveOrStomp(s, rt);
   const held = heldItem(p);
   const gun = held && def(held.id).firearm;
   if (gun) {

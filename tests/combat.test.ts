@@ -178,3 +178,53 @@ describe('vehicles', () => {
     expect(v.fuel).toBeLessThan(fuel0);
   });
 });
+
+describe('stomping', () => {
+  it('shoves a zombie down with Space, then kills it with Space stomps on the ground', () => {
+    const { s, rt, c, run } = harness(905);
+    const p = s.player;
+    const spot = openRoad(s);
+    p.x = spot.x;
+    p.y = spot.y;
+    p.facing = 0;
+    s.zombies = [];
+    s.vehicles = [];
+    // bare hands, a zombie right in front, already knocked down
+    const z = newZombie(s, rt.rng, p.x + 0.9, p.y + 0.3);
+    z.state = 'down';
+    z.downT = 3;
+    s.zombies.push(z);
+    // the cursor isn't exactly on it: stomps still find it
+    p.facing = -0.5;
+    let presses = 0;
+    run(8, 0.05, () => {
+      c.controls.shove = p.attackT <= 0 && z.hp > 0 && presses < 12;
+      if (c.controls.shove) presses++;
+      if (z.hp > 0 && z.state !== 'down') {
+        z.state = 'down';
+        z.downT = 3;
+      }
+    });
+    expect(z.hp).toBeLessThanOrEqual(0);
+    expect(presses).toBeLessThanOrEqual(6);
+  });
+
+  it('still shoves a standing zombie with Space', () => {
+    const { s, rt, c, run } = harness(906);
+    const p = s.player;
+    const spot = openRoad(s);
+    p.x = spot.x;
+    p.y = spot.y;
+    p.facing = 0;
+    s.zombies = [];
+    s.vehicles = [];
+    const z = newZombie(s, rt.rng, p.x + 0.9, p.y);
+    s.zombies.push(z);
+    const hp0 = z.hp;
+    c.controls.shove = true;
+    run(0.1, 0.05);
+    c.controls.shove = false;
+    expect(['down', 'stagger']).toContain(z.state);
+    expect(z.hp).toBe(hp0);
+  });
+});

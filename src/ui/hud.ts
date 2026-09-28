@@ -10,6 +10,7 @@ import { FURN } from '../world/furniture';
 import { WIN_BROKEN, WIN_CLEARED, WIN_CLOSED, WIN_OPEN, S } from '../world/world';
 import { doorName } from '../sim/structures';
 import { exitVehicle, startEngine, vehicleName } from '../sim/vehicles';
+import { stompTarget } from '../sim/combat';
 
 export class Hud {
   root: HTMLElement;
@@ -29,6 +30,7 @@ export class Hud {
   toast = document.createElement('div');
   speedo = document.createElement('div');
   modehint = document.createElement('div');
+  stompHint = document.createElement('div');
   vitals = document.createElement('div');
   conds = document.createElement('div');
   private g: Game;
@@ -58,6 +60,10 @@ export class Hud {
     this.toast.className = 'toast';
     this.speedo.className = 'speedo';
     this.modehint.className = 'modehint';
+    this.stompHint.className = 'stomphint';
+    this.stompHint.innerHTML = 'Stomp! <span class="k">Space</span> or <span class="k">click</span>';
+    this.stompHint.style.display = 'none';
+    root.appendChild(this.stompHint);
     this.heard.className = 'overlay';
     for (const e of [this.fog, this.vignette, this.hurt, this.flash, this.heard, this.tl, this.tr, this.bl, this.bc, this.br, this.action, this.tip, this.speedo, this.modehint, this.toast, this.sleep]) root.appendChild(e);
     this.sleep.style.display = 'none';
@@ -125,6 +131,14 @@ export class Hud {
       setStyle(this.action, 'top', `${Math.round(sy)}px`);
       setHTML(this.action, actionText);
     } else setStyle(this.action, 'display', 'none');
+    // a zombie on the ground within reach: say how to finish it
+    const st = !p.dead && !p.sleeping && p.inVehicle < 0 && !g.uiBlocking ? stompTarget(s, rt) : null;
+    if (st) {
+      const { sx, sy } = g.renderer.project(st.x, 0.5, st.y);
+      setStyle(this.stompHint, 'display', 'block');
+      setStyle(this.stompHint, 'left', `${Math.round(sx)}px`);
+      setStyle(this.stompHint, 'top', `${Math.round(sy)}px`);
+    } else setStyle(this.stompHint, 'display', 'none');
     // tooltip
     this.updateTooltip();
     // heard sounds

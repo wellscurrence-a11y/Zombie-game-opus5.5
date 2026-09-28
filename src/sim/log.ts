@@ -46,7 +46,7 @@ export const NOTES: Record<string, string> = {
   greed: 'Every extra room searched is more noise and more time. Know when to leave.',
   sound: 'You can distract them: a thrown bottle or a ringing alarm clock pulls them away.',
   utilities: 'The power and water will not last. Store water and plan for the dark.',
-  stomp: 'Shove them to the ground, then stomp. A downed zombie is far less dangerous.',
+  stomp: 'Shove them to the ground with Space, then press Space (or click) again to stomp while they\'re down. A downed zombie is far less dangerous.',
   crowd: 'Two is dangerous. Three or more is how people die. Use doors and fences to split them up.',
   fever: 'Fever, cold sweats, vomiting... the bite is taking hold.',
 };

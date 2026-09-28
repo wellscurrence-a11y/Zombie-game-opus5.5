@@ -47,7 +47,7 @@ Developer shortcuts: `?quick=1&seed=123` starts straight into a world; `&hour=22
 | Shift | Run — loud and tiring |
 | C | Crouch / sneak |
 | Left click | Attack. With a gun: hold to aim, release to fire |
-| Space | Shove (breaks grabs, knocks zombies down — then stomp them) |
+| Space | Shove (breaks grabs, knocks zombies down); press again while one is on the ground to stomp it |
 | Right click | Context options for doors, windows, furniture, cars, bodies, trees, the ground |
 | E | Open/close doors, climb through windows, vault fences; get out of a car (brakes first) |
 | F | Flashlight (headlights when driving) |

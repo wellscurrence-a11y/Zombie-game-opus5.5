@@ -239,7 +239,7 @@ export function helpScreen(root: HTMLElement, onClose: () => void): HTMLElement 
     <span class="k">Shift</span><span>Run (loud, tiring)</span>
     <span class="k">C</span><span>Crouch / sneak</span>
     <span class="k">Left click</span><span>Attack; hold & release to aim and fire guns</span>
-    <span class="k">Space</span><span>Shove (break grabs, knock them down)</span>
+    <span class="k">Space</span><span>Shove (break grabs, knock them down) — stomp one that's on the ground</span>
     <span class="k">Right click</span><span>Options for doors, windows, furniture, cars, ground</span>
     <span class="k">E</span><span>Open doors, climb, vault; get out of a car (it brakes first)</span>
     <span class="k">F</span><span>Flashlight (headlights in a car)</span>
@@ -254,7 +254,7 @@ export function helpScreen(root: HTMLElement, onClose: () => void): HTMLElement 
   </div></div>
   <div><h3 style="color:var(--accent);margin-bottom:8px">What experienced survivors know</h3>
     <div class="note">They don't know where you are. They see movement (worse in the dark, fog, rain — better if you carry a light), and they hear noise. Walls muffle sound.</div>
-    <div class="note">One is manageable. Two needs care. Three can kill you. Shove them down and stomp them.</div>
+    <div class="note">One is manageable. Two needs care. Three can kill you. Shove one down with Space, then press Space (or click) again while it's on the ground to stomp it. It takes a couple of stomps; each keeps it down a moment longer.</div>
     <div class="note">Running drains stamina fast. Fighting exhausted means slow swings, weak shoves, and grabs.</div>
     <div class="note">Breaking glass is loud, and the glass stays in the frame. Many buildings have alarms while the power's on.</div>
     <div class="note">Bleeding needs a bandage now. Dirty wounds go bad in hours. Bites carry a fever with no cure.</div>
