@@ -9,7 +9,7 @@ import { esc } from './dom';
 import { FURN } from '../world/furniture';
 import { WIN_BROKEN, WIN_CLEARED, WIN_CLOSED, WIN_OPEN, S } from '../world/world';
 import { doorName } from '../sim/structures';
-import { vehicleName } from '../sim/vehicles';
+import { exitVehicle, startEngine, vehicleName } from '../sim/vehicles';
 
 export class Hud {
   root: HTMLElement;
@@ -29,9 +29,10 @@ export class Hud {
   toast = document.createElement('div');
   speedo = document.createElement('div');
   modehint = document.createElement('div');
+  vitals = document.createElement('div');
+  conds = document.createElement('div');
   private g: Game;
   private slow = 0;
-  private lastLog = -1;
   private noteCount = 0;
   private toastT = 0;
 
@@ -39,6 +40,9 @@ export class Hud {
     this.root = root;
     this.g = g;
     this.tl.className = 'hud-tl';
+    this.vitals.className = 'vitals';
+    this.conds.className = 'conds';
+    this.tl.append(this.vitals, this.conds);
     this.tr.className = 'hud-tr';
     this.bl.className = 'hud-bl';
     this.bc.className = 'hud-bc';
@@ -82,6 +86,11 @@ export class Hud {
         g.rt.speed = v;
       }
     });
+    this.speedo.addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest('button');
+      if (b?.dataset.a === 'exit') exitVehicle(g);
+      else if (b?.dataset.a === 'engine') startEngine(g);
+    });
     this.bc.addEventListener('click', (e) => {
       const b = (e.target as HTMLElement).closest('.slot') as HTMLElement | null;
       if (b?.dataset.k) g.quickSlot(Number(b.dataset.k));
@@ -96,36 +105,26 @@ export class Hud {
     this.slow -= dt;
     // --- fast: overlays & positioned elements
     const pn = p.needs.calm > 0 ? p.needs.panic * 0.4 : p.needs.panic;
-    this.vignette.style.opacity = String(Math.min(1, 0.25 + pn * 0.9 + (1 - p.body.blood) * 0.8 + (p.needs.endurance < 0.2 ? 0.25 : 0)));
-    this.hurt.style.opacity = String(Math.min(1, rt.hurtFlash * 0.9 + (p.grabbedBy.length ? 0.35 + Math.sin(rt.realTime * 12) * 0.15 : 0)));
-    this.flash.style.opacity = String(rt.flash);
-    this.fog.style.opacity = String(Math.min(1, s.weather.fog * 1.1) * (0.35 + 0.65 * Math.max(0.15, 1 - (s.time % 24 < 6 || s.time % 24 > 20 ? 0.8 : 0))));
-    this.sleep.style.display = p.sleeping ? 'flex' : 'none';
+    setOverlay(this.vignette, Math.min(1, 0.25 + pn * 0.9 + (1 - p.body.blood) * 0.8 + (p.needs.endurance < 0.2 ? 0.25 : 0)));
+    setOverlay(this.hurt, Math.min(1, rt.hurtFlash * 0.9 + (p.grabbedBy.length ? 0.35 + Math.sin(rt.realTime * 12) * 0.15 : 0)));
+    setOverlay(this.flash, rt.flash);
+    setOverlay(this.fog, Math.min(1, s.weather.fog * 1.1) * (0.35 + 0.65 * Math.max(0.15, 1 - (s.time % 24 < 6 || s.time % 24 > 20 ? 0.8 : 0))));
+    setStyle(this.sleep, 'display', p.sleeping ? 'flex' : 'none');
     if (p.sleeping) {
       const info = this.sleep.querySelector('#sleepinfo')!;
       info.textContent = `${hasWatch(g) ? clockString(s.time) : clockString(s.time, false)} — fatigue ${Math.round(p.needs.fatigue * 100)}%`;
     }
     // action bar
     const a = rt.action;
-    if (a && !p.sleeping) {
+    const actionText = a && !p.sleeping ? `${esc(a.label)}<div class="bar"><i style="width:${(g.actionProgress() * 100).toFixed(0)}%"></i></div>`
+      : p.reloadT > 0 ? 'Reloading...' : p.climbT > 0 ? (p.climbKind === 'window' ? 'Climbing through...' : 'Climbing...') : '';
+    if (actionText) {
       const { sx, sy } = g.renderer.project(p.x, 2.3, p.y);
-      this.action.style.display = 'block';
-      this.action.style.left = `${sx}px`;
-      this.action.style.top = `${sy}px`;
-      this.action.innerHTML = `${esc(a.label)}<div class="bar"><i style="width:${(g.actionProgress() * 100).toFixed(0)}%"></i></div>`;
-    } else if (p.reloadT > 0) {
-      const { sx, sy } = g.renderer.project(p.x, 2.3, p.y);
-      this.action.style.display = 'block';
-      this.action.style.left = `${sx}px`;
-      this.action.style.top = `${sy}px`;
-      this.action.textContent = 'Reloading...';
-    } else if (p.climbT > 0) {
-      const { sx, sy } = g.renderer.project(p.x, 2.3, p.y);
-      this.action.style.display = 'block';
-      this.action.style.left = `${sx}px`;
-      this.action.style.top = `${sy}px`;
-      this.action.textContent = p.climbKind === 'window' ? 'Climbing through...' : 'Climbing...';
-    } else this.action.style.display = 'none';
+      setStyle(this.action, 'display', 'block');
+      setStyle(this.action, 'left', `${Math.round(sx)}px`);
+      setStyle(this.action, 'top', `${Math.round(sy)}px`);
+      setHTML(this.action, actionText);
+    } else setStyle(this.action, 'display', 'none');
     // tooltip
     this.updateTooltip();
     // heard sounds
@@ -133,14 +132,15 @@ export class Hud {
     // speedometer
     if (p.inVehicle >= 0) {
       const v = s.vehicles[p.inVehicle];
-      this.speedo.style.display = 'flex';
-      this.speedo.innerHTML = `<span class="big">${Math.round(Math.abs(v.speed) * 3.6)} km/h</span><span>${v.engineOn ? '<span class="good">Engine on</span>' : '<span class="dim">Engine off (R)</span>'}<br><span class="dim">Fuel ${Math.round((v.fuel / v.fuelCap) * 100)}% · Battery ${Math.round(v.battery * 100)}%</span></span><span class="dim">Engine ${Math.round(v.engine)}%<br>${v.lights ? 'Lights on (F)' : 'Lights off (F)'} · G horn</span>`;
-    } else this.speedo.style.display = 'none';
+      const broken = v.windows.filter((x) => x >= 2).length;
+      setStyle(this.speedo, 'display', 'flex');
+      setHTML(this.speedo, `<span class="big">${Math.round(Math.abs(v.speed) * 3.6)} km/h</span><span>${v.engineOn ? '<span class="good">Engine on</span>' : '<span class="dim">Engine off</span>'}<br><span class="dim">Fuel ${Math.round((v.fuel / v.fuelCap) * 100)}% · Battery ${Math.round(v.battery * 100)}%</span></span><span class="dim">Engine ${Math.round(v.engine)}%${broken ? ` · <span class="bad">${broken} window${broken > 1 ? 's' : ''} broken</span>` : ''}<br>${v.lights ? 'Lights on (F)' : 'Lights off (F)'} · G horn</span><span class="btns"><button data-a="engine">${v.engineOn ? 'Stop engine' : 'Start engine'} <span class="k">R</span></button><button data-a="exit" class="${rt.exitPending ? 'on' : ''}">${rt.exitPending ? 'Stopping…' : 'Get out'} <span class="k">E</span></button></span>`);
+    } else setStyle(this.speedo, 'display', 'none');
     const m = rt.mode;
     if (m || p.carrying >= 0) {
-      this.modehint.style.display = 'block';
+      setStyle(this.modehint, 'display', 'block');
       this.modehint.textContent = p.carrying >= 0 ? `Carrying ${FURN[s.world.furniture[p.carrying].kind].name.toLowerCase()} — left-click a nearby spot to set it down.` : m?.kind === 'throw' ? 'Throw: left-click a target. Esc cancels.' : m?.kind === 'place' ? 'Place: left-click a nearby spot. Esc cancels.' : 'Build: left-click a nearby empty tile. Esc cancels.';
-    } else this.modehint.style.display = 'none';
+    } else setStyle(this.modehint, 'display', 'none');
     // toast for new field notes
     if (s.notes.length > this.noteCount) {
       const id = s.notes[s.notes.length - 1];
@@ -158,30 +158,29 @@ export class Hud {
     if (this.slow > 0) return;
     this.slow = 0.12;
     // --- slow: text panels
+    setHTML(this.vitals, vitalsHtml(g));
     const conds = conditions(s, rt);
-    this.tl.innerHTML = conds
+    setHTML(this.conds, conds
       .map((c) => `<div class="cond ${c.tone}" title="${esc(c.tip)}"><span>${esc(c.label)}</span>${c.level > 1 ? `<span class="dots">${'●'.repeat(Math.min(4, c.level))}</span>` : ''}</div>`)
-      .join('');
+      .join(''));
     const watch = hasWatch(g);
     const wx = s.weather;
     const feel = wx.temp < 0 ? 'Freezing' : wx.temp < 7 ? 'Cold' : wx.temp < 13 ? 'Cool' : wx.temp < 22 ? 'Mild' : wx.temp < 28 ? 'Warm' : 'Hot';
     const wxName = { clear: 'Clear', cloudy: 'Overcast', rain: 'Rain', storm: 'Storm', fog: 'Fog', snow: 'Snow' }[wx.kind];
     const survived = s.time - p.startT;
     const sp = rt.speed;
-    this.tr.innerHTML = `<div class="clockbox"><div class="time">${watch ? clockString(s.time) : clockString(s.time, false)}</div><div class="date">Day ${dayNumber(s.time)} · ${dateString(s.time)}${watch ? '' : ' · no watch'}</div><div class="wx">${wxName} · ${feel} ${Math.round(wx.temp)}°C</div><div class="surv">Survived ${formatDuration(survived)}</div></div>
-      <div class="speed interactive"><button data-speed="0" class="${rt.paused ? 'on' : ''}">❚❚</button><button data-speed="1" class="${!rt.paused && sp === 1 ? 'on' : ''}">1×</button><button data-speed="3" class="${sp === 3 ? 'on' : ''}">3×</button><button data-speed="8" class="${sp === 8 ? 'on' : ''}">8×</button></div>`;
+    setHTML(this.tr, `<div class="clockbox"><div class="time">${watch ? clockString(s.time) : clockString(s.time, false)}</div><div class="date">Day ${dayNumber(s.time)} · ${dateString(s.time)}${watch ? '' : ' · no watch'}</div><div class="wx">${wxName} · ${feel} ${Math.round(wx.temp)}°C</div><div class="surv">Survived ${formatDuration(survived)}</div></div>
+      <div class="speed interactive"><button data-speed="0" class="${rt.paused ? 'on' : ''}">❚❚</button><button data-speed="1" class="${!rt.paused && sp === 1 ? 'on' : ''}">1×</button><button data-speed="3" class="${sp === 3 ? 'on' : ''}">3×</button><button data-speed="8" class="${sp === 8 ? 'on' : ''}">8×</button></div>`);
     // log
     const recent = s.log.slice(-8);
-    const key = s.log.length;
-    if (key !== this.lastLog || true) {
-      this.lastLog = key;
-      this.bl.innerHTML = recent
+    {
+      setHTML(this.bl, recent
         .map((l, i) => {
           const age = s.time - l.t;
           const op = Math.max(0.25, 1 - age / 1.2) * (0.55 + (i / recent.length) * 0.45);
-          return `<div class="logline ${l.kind}" style="opacity:${op.toFixed(2)}"><span class="t">${watch ? clockString(l.t) : ''}</span>${esc(l.text)}</div>`;
+          return `<div class="logline ${l.kind}" style="opacity:${(Math.round(op * 10) / 10).toFixed(1)}"><span class="t">${watch ? clockString(l.t) : ''}</span>${esc(l.text)}</div>`;
         })
-        .join('');
+        .join(''));
     }
     // hotbar
     const held = heldItem(p);
@@ -200,7 +199,7 @@ export class Hud {
     }
     const wt = carriedWeight(p);
     const cap = capacity(p);
-    this.bc.innerHTML = `<div class="hotbar" style="${p.inVehicle >= 0 ? 'visibility:hidden' : ''}">${slots.join('')}</div><div class="bars"><span>Stamina</span><div class="bar end"><i style="width:${Math.round(p.needs.endurance * 100)}%"></i></div><span class="${wt > cap ? 'warn' : 'dim'}">${wt.toFixed(1)} / ${cap.toFixed(0)} kg</span><span class="dim">${p.stance === 'crouch' ? 'Crouched' : p.running ? 'Running' : 'Walking'}${held ? ` · ${esc(itemName(held))}` : ' · Bare hands'}</span></div>`;
+    setHTML(this.bc, `<div class="hotbar" style="${p.inVehicle >= 0 ? 'visibility:hidden' : ''}">${slots.join('')}</div><div class="bars"><span class="${wt > cap ? 'warn' : 'dim'}">${wt.toFixed(1)} / ${cap.toFixed(0)} kg</span><span class="dim">${p.stance === 'crouch' ? 'Crouched' : p.running ? 'Running' : 'Walking'}${held ? ` · ${esc(itemName(held))}` : ' · Bare hands'}</span></div>`);
   }
 
   private updateTooltip(): void {
@@ -209,7 +208,7 @@ export class Hud {
     const h = g.hover;
     const inp = g.input;
     if (!h || inp.overUi || h.kind === 'ground' || g.uiBlocking || s.player.dead || s.player.sleeping) {
-      this.tip.style.display = 'none';
+      setStyle(this.tip, 'display', 'none');
       return;
     }
     const w = s.world;
@@ -270,13 +269,13 @@ export class Hud {
         break;
     }
     if (!text) {
-      this.tip.style.display = 'none';
+      setStyle(this.tip, 'display', 'none');
       return;
     }
-    this.tip.style.display = 'block';
-    this.tip.style.left = `${inp.mouseX}px`;
-    this.tip.style.top = `${inp.mouseY}px`;
-    this.tip.innerHTML = text + '<br><span class="faint">Right-click for options</span>';
+    setStyle(this.tip, 'display', 'block');
+    setStyle(this.tip, 'left', `${Math.round(inp.mouseX)}px`);
+    setStyle(this.tip, 'top', `${Math.round(inp.mouseY)}px`);
+    setHTML(this.tip, text + '<br><span class="faint">Right-click for options</span>');
   }
 
   private updateHeard(): void {
@@ -302,9 +301,9 @@ export class Hud {
       }
       const op = Math.max(0, 1 - (now - h.t) / 4.5);
       const arrow = off ? arrowFor(sx - W / 2, sy - H / 2) + ' ' : '';
-      html += `<div class="heard" style="left:${sx}px;top:${sy}px;opacity:${op.toFixed(2)}">${arrow}${esc(h.label)}</div>`;
+      html += `<div class="heard" style="left:${Math.round(sx)}px;top:${Math.round(sy)}px;opacity:${op.toFixed(1)}">${arrow}${esc(h.label)}</div>`;
     }
-    this.heard.innerHTML = html;
+    setHTML(this.heard, html);
     void s;
   }
 }
@@ -318,4 +317,52 @@ function arrowFor(dx: number, dy: number): string {
 export function hasWatch(g: Game): boolean {
   const p = g.s.player;
   return p.inventory.some((i) => i.id === 'watch') || !!p.bag?.contents?.some((i) => i.id === 'watch');
+}
+
+// Writing to the DOM is costly on low-end machines; only touch it when something changed.
+const htmlCache = new WeakMap<HTMLElement, string>();
+function setHTML(el: HTMLElement, html: string): void {
+  if (htmlCache.get(el) === html) return;
+  htmlCache.set(el, html);
+  el.innerHTML = html;
+}
+const styleCache = new WeakMap<HTMLElement, Record<string, string>>();
+function setStyle(el: HTMLElement, prop: 'opacity' | 'display' | 'left' | 'top', v: string): void {
+  let c = styleCache.get(el);
+  if (!c) styleCache.set(el, (c = {}));
+  if (c[prop] === v) return;
+  c[prop] = v;
+  el.style[prop] = v;
+}
+/** Full-screen overlays are hidden outright when invisible, so the compositor can skip them. */
+function setOverlay(el: HTMLElement, opacity: number): void {
+  const o = Math.round(opacity * 50) / 50;
+  setStyle(el, 'display', o <= 0 ? 'none' : 'block');
+  if (o > 0) setStyle(el, 'opacity', String(o));
+}
+
+function tone(frac: number): string {
+  return frac > 0.5 ? 'good' : frac > 0.25 ? 'warn' : 'bad';
+}
+
+/** Always-on survivor vitals: health, food, water, rest, stamina and body temperature. */
+export function vitalsHtml(g: Game): string {
+  const p = g.s.player;
+  const n = p.needs;
+  const row = (label: string, frac: number, text: string, cls: string, tip: string): string =>
+    `<div class="vrow" title="${tip}"><span class="vl">${label}</span><div class="vbar"><i class="${cls}" style="width:${Math.round(Math.max(0, Math.min(1, frac)) * 100)}%"></i></div><span class="vv ${cls}">${text}</span></div>`;
+  const pct = (f: number): string => `${Math.round(Math.max(0, Math.min(1, f)) * 100)}%`;
+  const hp = Math.max(0, p.body.health) / 100;
+  const food = 1 - n.hunger;
+  const water = 1 - n.thirst;
+  const rest = 1 - n.fatigue;
+  const temp = n.temp;
+  const tCls = temp < 35.3 || temp > 39 ? 'bad' : temp < 36.2 ? 'cold' : temp > 37.9 ? 'warn' : 'good';
+  const tFrac = (temp - 34) / 6;
+  return row('Health', hp, pct(hp), tone(hp), 'Overall health. Wounds, blood loss, infection, hunger and thirst wear it down.')
+    + row('Food', food, pct(food), tone(food), 'How well fed you are. Eat before it runs low: starving makes you weak and slow to heal.')
+    + row('Water', water, pct(water), tone(water), 'Hydration. Drops faster when running or in the heat. Dehydration kills within days.')
+    + row('Rest', rest, pct(rest), tone(rest), 'How rested you are. Tiredness slows your swings and blurs your eyes. Sleep somewhere safe.')
+    + row('Stamina', n.endurance, pct(n.endurance), tone(n.endurance), 'Short-term breath. Running, fighting and climbing use it up.')
+    + row('Body', tFrac, `${temp.toFixed(1)}°`, tCls, 'Body temperature. Normal is about 37°C. Wet clothes, wind and cold nights pull it down.');
 }

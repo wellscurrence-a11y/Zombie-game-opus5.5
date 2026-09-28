@@ -38,7 +38,20 @@ h1, h2, h3 { font-family: var(--title); font-weight: 600; letter-spacing: 0.04em
 .good { color: var(--good); }
 
 /* ---------------------------------------------------------------- HUD */
-.hud-tl { position: absolute; top: 12px; left: 12px; display: flex; flex-direction: column; gap: 4px; max-width: 250px; }
+.hud-tl { position: absolute; top: 12px; left: 12px; display: flex; flex-direction: column; gap: 6px; max-width: 250px; }
+.conds { display: flex; flex-direction: column; gap: 4px; }
+.vitals { width: 214px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 7px 10px; display: flex; flex-direction: column; gap: 4px; font-size: 11px; pointer-events: auto; cursor: help; }
+.vrow { display: grid; grid-template-columns: 50px 1fr 42px; gap: 8px; align-items: center; }
+.vrow .vl { color: var(--dim); letter-spacing: 0.02em; }
+.vrow .vv { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
+.vbar { height: 6px; background: rgba(255, 255, 255, 0.08); border-radius: 2px; overflow: hidden; }
+.vbar > i { display: block; height: 100%; background: var(--good); }
+.vbar > i.warn { background: var(--warn); }
+.vbar > i.bad { background: var(--danger); }
+.vbar > i.cold { background: #6f9fc4; }
+.vrow .vv.warn { color: var(--warn); }
+.vrow .vv.bad { color: var(--danger); }
+.vrow .vv.cold { color: #8db8d8; }
 .cond { display: flex; align-items: center; gap: 8px; padding: 3px 9px 3px 7px; background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--info); border-radius: 3px; font-size: 12px; pointer-events: auto; cursor: help; width: fit-content; }
 .cond.warn { border-left-color: var(--warn); }
 .cond.bad { border-left-color: var(--danger); animation: pulse 1.6s ease-in-out infinite; }
@@ -97,7 +110,12 @@ h1, h2, h3 { font-family: var(--title); font-weight: 600; letter-spacing: 0.04em
 .toast { position: absolute; top: 18%; left: 50%; transform: translateX(-50%); background: rgba(20, 22, 18, 0.95); border: 1px solid var(--accent-2); border-radius: 4px; padding: 10px 16px; max-width: 560px; text-align: center; font-size: 13px; animation: toastIn 0.4s ease-out; }
 .toast .h { font-family: var(--title); color: var(--accent); letter-spacing: 0.12em; font-size: 12px; margin-bottom: 4px; }
 @keyframes toastIn { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }
-.speedo { position: absolute; left: 50%; bottom: 58px; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 5px 12px; font-size: 12px; display: flex; gap: 14px; }
+.speedo { position: absolute; right: 12px; bottom: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 6px 12px; font-size: 12px; display: flex; gap: 14px; align-items: center; max-width: calc(100vw - 24px); flex-wrap: wrap; justify-content: flex-end; }
+.speedo > span { white-space: nowrap; }
+.speedo .btns { display: flex; gap: 6px; }
+.speedo button { pointer-events: auto; white-space: nowrap; }
+.speedo button .k { color: var(--faint); margin-left: 4px; font-size: 10px; }
+.speedo button.on { border-color: var(--accent); color: var(--accent); }
 .speedo .big { font-family: var(--title); font-size: 20px; color: #efe6d3; }
 .modehint { position: absolute; top: 70px; left: 50%; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--accent-2); border-radius: 3px; padding: 5px 12px; font-size: 12px; }
 

@@ -126,6 +126,7 @@ export class Game implements Ctx {
     }
     this.renderer.update(this.s, rt, dt);
     this.renderer.render();
+    this.renderer.adapt(dt);
     this.onFrame?.(dt);
     if (this.s.player.dead && !rt.deathHandled) {
       rt.deathHandled = true;
@@ -159,6 +160,8 @@ export class Game implements Ctx {
       }
       const v = s.vehicles[p.inVehicle];
       v.horn = inp.down('KeyG');
+      // right-click anywhere while inside: the car's own options (engine, glovebox, get out...)
+      if (inp.rmbPressed && !inp.overUi) this.showContext({ kind: 'vehicle', x: v.x, y: v.y, id: v.id }, inp.mouseX, inp.mouseY);
       return;
     }
     if (inp.hit('KeyC')) {

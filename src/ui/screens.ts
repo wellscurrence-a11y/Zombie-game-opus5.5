@@ -5,6 +5,7 @@ import { DEFAULT_SETTINGS, type SurvivorSpec } from '../sim/newgame';
 import type { WorldSummary } from '../sim/save';
 import { OCCUPATIONS, TRAITS } from '../sim/traits';
 import type { DeadRecord, GameState, WorldSettings } from '../sim/types';
+import { detectTier, TIER_NAMES, type QualityPref } from '../render/quality';
 import { encumbranceLevel } from '../sim/stats';
 import { esc } from './dom';
 
@@ -240,7 +241,7 @@ export function helpScreen(root: HTMLElement, onClose: () => void): HTMLElement 
     <span class="k">Left click</span><span>Attack; hold & release to aim and fire guns</span>
     <span class="k">Space</span><span>Shove (break grabs, knock them down)</span>
     <span class="k">Right click</span><span>Options for doors, windows, furniture, cars, ground</span>
-    <span class="k">E</span><span>Open doors, climb, vault; exit a car</span>
+    <span class="k">E</span><span>Open doors, climb, vault; get out of a car (it brakes first)</span>
     <span class="k">F</span><span>Flashlight (headlights in a car)</span>
     <span class="k">R</span><span>Reload (start engine in a car)</span>
     <span class="k">L</span><span>Room lights</span>
@@ -260,6 +261,8 @@ export function helpScreen(root: HTMLElement, onClose: () => void): HTMLElement 
     <div class="note">Lock doors, close curtains, board windows. Sleep somewhere secured.</div>
     <div class="note">The power and water will fail. Store water. A generator must run outdoors.</div>
     <div class="note">Every extra room you search is more noise and more time. Know when to leave.</div>
+    <div class="note">A car is not a shelter. The dead break the glass, reach in and drag you out. Keep moving.</div>
+    <div class="note">Chromebook trackpad: tap with two fingers (or Alt + click) to right-click. If it's slow, set Graphics to Low in Settings.</div>
   </div></div>
   <div style="margin-top:14px"><button class="primary" id="close">Back</button></div></div>`;
   sc.querySelector('#close')!.addEventListener('click', onClose);
@@ -277,24 +280,38 @@ export function recordsScreen(root: HTMLElement, recs: DeadRecord[], onClose: ()
 }
 
 export interface Prefs {
+  /** Legacy (now decided by the quality tier). */
   shadows: boolean;
   volume: number;
   pixelRatio: number;
+  quality?: QualityPref;
+  autoRes?: boolean;
 }
 
 export function settingsScreen(root: HTMLElement, prefs: Prefs, onSave: (p: Prefs) => void, onClose: () => void): HTMLElement {
   const sc = screen(root);
+  const detected = detectTier();
+  const q = prefs.quality ?? 'auto';
+  const opts = (['auto', 'low', 'medium', 'high'] as QualityPref[])
+    .map((k) => `<option value="${k}">${k === 'auto' ? `Auto (this device: ${detected})` : TIER_NAMES[k]}</option>`).join('');
   sc.innerHTML = `<div class="menu"><h1 style="font-size:32px;color:#e7dcc4">Settings</h1>
-  <div class="field" style="margin-top:14px"><label>Shadows</label><select id="sh"><option value="1">On</option><option value="0">Off (faster)</option></select></div>
-  <div class="field"><label>Render resolution</label><select id="pr"><option value="1">Normal</option><option value="0.75">Reduced (faster)</option><option value="0.5">Low (fastest, for Chromebooks)</option><option value="2">High (sharper)</option></select></div>
+  <div class="field" style="margin-top:14px"><label>Graphics quality</label><select id="gq">${opts}</select></div>
+  <p class="dim" style="margin:-4px 0 10px;font-size:11px">Low turns off shadows and smoothing and simplifies ground detail. Best for Chromebooks. Some changes apply after reloading the page.</p>
+  <div class="field"><label>Render resolution</label><select id="pr"><option value="1">Normal</option><option value="0.75">Reduced (faster)</option><option value="0.5">Low (fastest)</option><option value="1.5">High (sharper)</option></select></div>
+  <div class="field"><label><input type="checkbox" id="ar"> Lower the resolution automatically when the game runs slowly</label></div>
   <div class="field"><label>Volume</label><input id="vol" type="range" min="0" max="1" step="0.05" value="${prefs.volume}"></div>
   <div style="display:flex;gap:8px"><button class="primary" id="save">Save</button><button id="close">Back</button></div></div>`;
-  (sc.querySelector('#sh') as HTMLSelectElement).value = prefs.shadows ? '1' : '0';
-  (sc.querySelector('#pr') as HTMLSelectElement).value = String(prefs.pixelRatio);
+  (sc.querySelector('#gq') as HTMLSelectElement).value = q;
+  const pr = sc.querySelector('#pr') as HTMLSelectElement;
+  pr.value = String(prefs.pixelRatio);
+  if (!pr.value) pr.value = '1';
+  (sc.querySelector('#ar') as HTMLInputElement).checked = prefs.autoRes !== false;
   sc.querySelector('#save')!.addEventListener('click', () => {
     onSave({
-      shadows: (sc.querySelector('#sh') as HTMLSelectElement).value === '1',
-      pixelRatio: Number((sc.querySelector('#pr') as HTMLSelectElement).value),
+      shadows: prefs.shadows,
+      quality: (sc.querySelector('#gq') as HTMLSelectElement).value as QualityPref,
+      pixelRatio: Number(pr.value),
+      autoRes: (sc.querySelector('#ar') as HTMLInputElement).checked,
       volume: Number((sc.querySelector('#vol') as HTMLInputElement).value),
     });
   });

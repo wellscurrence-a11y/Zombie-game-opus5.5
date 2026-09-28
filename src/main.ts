@@ -2,6 +2,7 @@ import './ui/styles.css';
 import { Game } from './game';
 import { Input } from './input';
 import { Renderer } from './render/Renderer';
+import { profileFor, readQualityPref, resolveTier, writeQualityPref, type QualityPref } from './render/quality';
 import { newGame, type SurvivorSpec } from './sim/newgame';
 import { addRecord, currentWorldId, deleteWorld, getSetting, listWorlds, loadGame, newSurvivor, recordDeath, records, saveGame, setSetting } from './sim/save';
 import type { GameState, WorldSettings } from './sim/types';
@@ -10,25 +11,37 @@ import { UI } from './ui/ui';
 import { zombiesNear } from './sim/runtime';
 import { AudioEngine } from './audio/audio';
 
+/** `?gfx=low|medium|high` forces a tier (for testing). */
+function urlTier(): QualityPref | null {
+  const v = new URLSearchParams(location.search).get('gfx');
+  return v === 'low' || v === 'medium' || v === 'high' ? v : null;
+}
+
+function startTier(): ReturnType<typeof resolveTier> {
+  return resolveTier(urlTier() ?? readQualityPref());
+}
+
 class App {
   root = document.getElementById('ui')!;
   canvas = document.getElementById('view') as HTMLCanvasElement;
-  renderer = new Renderer(this.canvas);
+  renderer = new Renderer(this.canvas, profileFor(startTier()));
   input = new Input(this.canvas);
   audio = new AudioEngine();
   game: Game | null = null;
   ui: UI | null = null;
   screen: HTMLElement | null = null;
-  prefs: Prefs = { shadows: true, volume: 0.7, pixelRatio: 1 };
+  prefs: Prefs = { shadows: true, volume: 0.7, pixelRatio: 1, quality: readQualityPref(), autoRes: true };
   private saveTimer = 0;
   private saving = false;
 
   async boot(): Promise<void> {
-    this.prefs = await getSetting<Prefs>('prefs', this.prefs);
+    const stored = await getSetting<Partial<Prefs>>('prefs', {});
+    // the quality tier lives in local storage too, so it's known before the renderer starts
+    this.prefs = { ...this.prefs, ...stored, quality: readQualityPref() };
     this.applyPrefs();
     const params = new URLSearchParams(location.search);
     if (params.has('lowgfx')) {
-      this.prefs = { ...this.prefs, shadows: false, pixelRatio: 0.5 };
+      this.prefs = { ...this.prefs, pixelRatio: 0.5 };
       this.applyPrefs();
     }
     if (params.has('quick')) {
@@ -48,11 +61,21 @@ class App {
   }
 
   applyPrefs(): void {
-    this.renderer.gl.shadowMap.enabled = this.prefs.shadows;
-    this.renderer.quality = this.prefs.shadows ? 'high' : 'low';
-    this.renderer.gl.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2) * this.prefs.pixelRatio);
-    this.renderer.resize();
+    const r = this.renderer;
+    const q = urlTier() ?? this.prefs.quality ?? 'auto';
+    if (profileFor(resolveTier(q)).tier !== r.profile.tier) r.setProfile(profileFor(resolveTier(q)));
+    r.userScale = this.prefs.pixelRatio;
+    r.autoRes = this.prefs.autoRes !== false;
+    if (!r.autoRes) r.resScale = 1;
+    r.applyResolution();
     this.audio.setVolume(this.prefs.volume);
+  }
+
+  savePrefs(p: Prefs): Promise<void> {
+    this.prefs = p;
+    writeQualityPref(p.quality ?? 'auto');
+    this.applyPrefs();
+    return setSetting('prefs', p);
   }
 
   clearScreen(): void {
@@ -79,9 +102,7 @@ class App {
         this.overlay((r, close) => recordsScreen(r, recs, close));
       },
       onSettings: () => this.overlay((r, close) => settingsScreen(r, this.prefs, async (p) => {
-        this.prefs = p;
-        this.applyPrefs();
-        await setSetting('prefs', p);
+        await this.savePrefs(p);
         close();
       }, close)),
     });
@@ -200,9 +221,7 @@ class App {
       },
       onHelp: () => this.overlay((r, close) => helpScreen(r, close)),
       onSettings: () => this.overlay((r, close) => settingsScreen(r, this.prefs, async (p) => {
-        this.prefs = p;
-        this.applyPrefs();
-        await setSetting('prefs', p);
+        await this.savePrefs(p);
         close();
       }, close)),
     });

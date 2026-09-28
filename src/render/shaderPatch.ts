@@ -33,7 +33,11 @@ float qnoise(vec2 p) {
   float a = qh21(i), b = qh21(i + vec2(1.0, 0.0)), c = qh21(i + vec2(0.0, 1.0)), d = qh21(i + vec2(1.0, 1.0));
   return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
 }
+#ifdef QH_LOW
+float qfbm(vec2 p) { return qnoise(p * 1.4); }
+#else
 float qfbm(vec2 p) { return qnoise(p) * 0.5 + qnoise(p * 2.13) * 0.3 + qnoise(p * 4.37) * 0.2; }
+#endif
 vec3 s2l(vec3 c) { return pow(c, vec3(2.2)); }
 `;
 
@@ -157,6 +161,9 @@ vec3 groundColor(vec2 wp, out float aoEdge) {
 }
 `;
 
+/** Global shader settings, fixed when the materials first compile. */
+export const shaderOpts = { detail: true };
+
 export interface PatchOpts {
   /** Minimum visibility factor (roofs never go fully dark). */
   minVis?: number;
@@ -192,7 +199,7 @@ export function patchMaterial<T extends THREE.Material>(mat: T, opts: PatchOpts 
         qW = modelMatrix * qW;
         vWPos = qW.xyz;`,
       );
-    let frag = shader.fragmentShader.replace('#include <common>', '#include <common>\n' + COMMON_FRAG + (opts.ground ? GROUND_FUNC : ''));
+    let frag = shader.fragmentShader.replace('#include <common>', '#include <common>\n' + (shaderOpts.detail ? '' : '#define QH_LOW\n') + COMMON_FRAG + (opts.ground ? GROUND_FUNC : ''));
     if (opts.ground) {
       frag = frag.replace('#include <map_fragment>', 'float groundAo = 1.0;\ndiffuseColor.rgb = groundColor(vWPos.xz, groundAo);');
     }
@@ -228,6 +235,6 @@ export function patchMaterial<T extends THREE.Material>(mat: T, opts: PatchOpts 
     );
     shader.fragmentShader = frag;
   };
-  mat.customProgramCacheKey = () => `q:${opts.ground ? 1 : 0}:${opts.ao ? 1 : 0}:${minVis}:${opts.noFog ? 1 : 0}`;
+  mat.customProgramCacheKey = () => `q:${opts.ground ? 1 : 0}:${opts.ao ? 1 : 0}:${minVis}:${opts.noFog ? 1 : 0}:${shaderOpts.detail ? 1 : 0}`;
   return mat;
 }

@@ -8,7 +8,8 @@ import type { GameState, Zombie } from '../sim/types';
 import { inVehicle } from '../sim/vehicleSpecs';
 import { CorpseLayer, FloorItemLayer, PlayerModel, VehicleLayer, ZombieLayer } from './entities';
 import { EffectsLayer } from './effects';
-import { U } from './shaderPatch';
+import { shaderOpts, U } from './shaderPatch';
+import { profileFor, type Profile } from './quality';
 import { FurnitureLayer, Ground, NatureLayer, RoofLayer } from './staticLayers';
 import { WallLayer } from './walls';
 import { playerPose, shirtColor, pantsColor, outerColor } from './poses';
@@ -22,6 +23,12 @@ export interface Hover {
 }
 
 const ELEV = (36 * Math.PI) / 180;
+// reused every frame to avoid garbage
+const C = {
+  sun: new THREE.Color(), dusk: new THREE.Color(0xff9a5a), moon: new THREE.Color(0x6a80b0),
+  nightHemi: new THREE.Color(0x2a3548), dayHemi: new THREE.Color(), overcast: new THREE.Color(0x9aa0a8), groundNight: new THREE.Color(0x151515),
+  fog: new THREE.Color(), fogDay: new THREE.Color(0x8a9096),
+};
 const AZ = [45, 135, 225, 315].map((d) => (d * Math.PI) / 180);
 
 export class Renderer {
@@ -58,12 +65,28 @@ export class Renderer {
   private w!: World;
   private lastRev = { walls: -1, doors: -1, furn: -1, ground: -1 };
   private cutT = 0;
-  quality: 'high' | 'low' = 'high';
+  profile: Profile;
+  /** Adaptive render scale (0.5..1) and the player's own resolution multiplier. */
+  resScale = 1;
+  userScale = 1;
+  autoRes = true;
+  private ftAvg = 16;
+  private adaptT = 0;
+  private visT = 0;
+  private visStamp!: Uint32Array;
+  private visGen = 0;
+  private rowMin!: Int32Array;
+  private rowMax!: Int32Array;
 
-  constructor(canvas: HTMLCanvasElement) {
-    this.gl = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-    this.gl.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.gl.shadowMap.enabled = true;
+  constructor(canvas: HTMLCanvasElement, profile: Profile = profileFor('high')) {
+    this.profile = profile;
+    shaderOpts.detail = profile.detail;
+    this.resScale = profile.startScale;
+    this.gl = new THREE.WebGLRenderer({ canvas, antialias: profile.antialias, powerPreference: 'high-performance' });
+    this.gl.setPixelRatio(Math.min(window.devicePixelRatio || 1, profile.maxDpr) * this.resScale);
+    this.gl.shadowMap.enabled = profile.shadows;
+    // error checks force a synchronous stall on every shader compile
+    this.gl.debug.checkShaderErrors = false;
     this.gl.shadowMap.type = THREE.PCFShadowMap;
     this.gl.toneMapping = THREE.ACESFilmicToneMapping;
     this.gl.toneMappingExposure = 1.05;
@@ -74,7 +97,7 @@ export class Renderer {
     this.scene.add(this.hemi);
     this.sun = new THREE.DirectionalLight(0xfff0dc, 2.2);
     this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(2048, 2048);
+    this.sun.shadow.mapSize.set(profile.shadowSize, profile.shadowSize);
     const sc = this.sun.shadow.camera;
     sc.left = -34;
     sc.right = 34;
@@ -111,6 +134,9 @@ export class Renderer {
     this.visData = new Uint8Array(w.w * w.h * 4);
     this.visCur = new Float32Array(w.w * w.h);
     for (let i = 0; i < w.w * w.h; i++) this.visData[i * 4 + 1] = w.explored[i] ? 255 : 0;
+    this.visStamp = new Uint32Array(w.w * w.h);
+    this.rowMin = new Int32Array(w.h).fill(w.w);
+    this.rowMax = new Int32Array(w.h).fill(-1);
     this.visTex = new THREE.DataTexture(this.visData, w.w, w.h, THREE.RGBAFormat);
     this.visTex.magFilter = THREE.LinearFilter;
     this.visTex.minFilter = THREE.LinearFilter;
@@ -144,6 +170,62 @@ export class Renderer {
     add(this.fx.group);
     this.lastRev = { ...w.rev };
     this.target.set(s.player.x, 0, s.player.y);
+    this.precompile();
+  }
+
+  /**
+   * Compile every shader variant up front: switched-off lights are removed from the scene (cheaper per
+   * pixel), which changes the light count, so each on/off combination needs its own programs.
+   */
+  private precompile(): void {
+    const lights = [this.flashlight, this.headL, this.headR];
+    const combos = [[true, false, false], [false, true, true], [false, false, false]];
+    for (const c of combos) {
+      lights.forEach((l, i) => (l.visible = c[i]));
+      this.flashlight.castShadow = c[0] && this.profile.spotShadows;
+      try {
+        this.gl.compile(this.scene, this.camera);
+      } catch {
+        // compiled lazily instead
+      }
+    }
+    this.flashlight.castShadow = false;
+  }
+
+  /** Switch tier at runtime (antialiasing and surface detail only change on the next page load). */
+  setProfile(p: Profile): void {
+    this.profile = { ...p, antialias: this.profile.antialias, detail: this.profile.detail };
+    this.gl.shadowMap.enabled = p.shadows;
+    if (this.sun.shadow.mapSize.x !== p.shadowSize) {
+      this.sun.shadow.mapSize.set(p.shadowSize, p.shadowSize);
+      this.sun.shadow.map?.dispose();
+      this.sun.shadow.map = null;
+    }
+    this.resScale = Math.min(this.resScale, 1);
+    this.applyResolution();
+  }
+
+  applyResolution(): void {
+    const dpr = Math.min(window.devicePixelRatio || 1, this.profile.maxDpr);
+    this.gl.setPixelRatio(Math.max(0.3, dpr * this.resScale * this.userScale));
+    this.resize();
+  }
+
+  /** Nudge the render resolution to keep the frame rate playable. Call once per frame with the real frame time. */
+  adapt(dt: number): void {
+    if (!this.autoRes || dt <= 0 || dt > 0.25) return;
+    this.ftAvg += (dt * 1000 - this.ftAvg) * 0.05;
+    this.adaptT += dt;
+    if (this.adaptT < 1.5) return;
+    if (this.ftAvg > 32 && this.resScale > 0.5) {
+      this.resScale = Math.max(0.5, Math.round((this.resScale - 0.1) * 10) / 10);
+      this.adaptT = 0;
+      this.applyResolution();
+    } else if (this.ftAvg < 18 && this.adaptT > 10 && this.resScale < 1) {
+      this.resScale = Math.min(1, Math.round((this.resScale + 0.1) * 10) / 10);
+      this.adaptT = 0;
+      this.applyResolution();
+    }
   }
 
   resize(): void {
@@ -450,16 +532,27 @@ export class Renderer {
   }
 
   private updateVisTexture(s: GameState, rt: Runtime, dt: number): void {
+    // low tier: the fade is smooth enough at ~30 updates a second
+    this.visT += dt;
+    if (!this.profile.detail && this.visT < 1 / 30) return;
+    dt = this.visT;
+    this.visT = 0;
     const w = s.world;
+    const W = w.w;
     const cur = this.visCur;
     const d = this.visData;
     const kIn = 1 - Math.exp(-dt * 10);
     const kOut = 1 - Math.exp(-dt * 5);
     const next: number[] = [];
-    const touched = new Set<number>();
+    const gen = ++this.visGen;
+    const stamp = this.visStamp;
+    const rowMin = this.rowMin;
+    const rowMax = this.rowMax;
+    let yMin = w.h;
+    let yMax = -1;
     const proc = (i: number): void => {
-      if (touched.has(i)) return;
-      touched.add(i);
+      if (stamp[i] === gen) return;
+      stamp[i] = gen;
       const t = rt.vis[i];
       const c = cur[i];
       const n = t ? c + (1 - c) * kIn : c - c * kOut;
@@ -467,10 +560,24 @@ export class Renderer {
       d[i * 4] = cur[i] * 255;
       d[i * 4 + 1] = w.explored[i] ? 255 : 0;
       if (cur[i] > 0) next.push(i);
+      const x = i % W;
+      const y = (i - x) / W;
+      if (x < rowMin[y]) rowMin[y] = x;
+      if (x > rowMax[y]) rowMax[y] = x;
+      if (y < yMin) yMin = y;
+      if (y > yMax) yMax = y;
     };
     for (const i of rt.visList) proc(i);
     for (const i of this.lit) proc(i);
     this.lit = next;
+    if (yMax < 0) return;
+    // upload only the rows that changed
+    for (let y = yMin; y <= yMax; y++) {
+      if (rowMax[y] < 0) continue;
+      this.visTex.addUpdateRange((y * W + rowMin[y]) * 4, (rowMax[y] - rowMin[y] + 1) * 4);
+      rowMin[y] = W;
+      rowMax[y] = -1;
+    }
     this.visTex.needsUpdate = true;
   }
 
@@ -486,8 +593,8 @@ export class Renderer {
     const sy = Math.max(12, Math.sin(sunAng) * 70);
     this.sun.position.set(this.target.x - sx, sy, this.target.z - 30);
     this.sun.target.position.copy(this.target);
-    const sunCol = new THREE.Color(0xfff2de).lerp(new THREE.Color(0xff9a5a), dusk * 0.8);
-    const moonCol = new THREE.Color(0x6a80b0);
+    const sunCol = C.sun.set(0xfff2de).lerp(C.dusk, dusk * 0.8);
+    const moonCol = C.moon;
     if (day > 0.02) {
       this.sun.color.copy(sunCol);
       this.sun.intensity = 2.4 * day * (1 - overcast * 0.75);
@@ -496,18 +603,18 @@ export class Renderer {
       this.sun.intensity = 0.28 * (1 - wx.cloud * 0.7);
       this.sun.position.set(this.target.x + 30, 60, this.target.z - 40);
     }
-    const nightHemi = new THREE.Color(0x2a3548);
-    const dayHemi = new THREE.Color(0xb8c8d8).lerp(new THREE.Color(0x9aa0a8), overcast);
-    this.hemi.color.copy(nightHemi).lerp(dayHemi, day);
-    this.hemi.groundColor.set(0x3a342a).lerp(new THREE.Color(0x151515), 1 - day);
+    const dayHemi = C.dayHemi.set(0xb8c8d8).lerp(C.overcast, overcast);
+    this.hemi.color.copy(C.nightHemi).lerp(dayHemi, day);
+    this.hemi.groundColor.set(0x3a342a).lerp(C.groundNight, 1 - day);
     this.hemi.intensity = lerp(0.35, 1.25, day) * (1 - overcast * 0.2);
     U.uNight.value = 1 - day;
     U.uWet.value = wx.rain > 0.1 && wx.kind !== 'snow' ? Math.min(1, wx.rain * 1.4) : 0;
     U.uSnow.value = wx.snow ?? 0;
-    const fogCol = new THREE.Color(0x0a0c10).lerp(new THREE.Color(0x8a9096), wx.fog * day * 0.9 + wx.fog * 0.15);
+    const fogCol = C.fog.set(0x0a0c10).lerp(C.fogDay, wx.fog * day * 0.9 + wx.fog * 0.15);
     U.uFogColor.value.copy(fogCol);
     U.uFogAmt.value = wx.fog;
-    this.scene.background = fogCol.clone().multiplyScalar(0.9);
+    if (!(this.scene.background instanceof THREE.Color)) this.scene.background = new THREE.Color();
+    (this.scene.background as THREE.Color).copy(fogCol).multiplyScalar(0.9);
     this.gl.toneMappingExposure = 1.0 + (1 - day) * 0.25;
     // flashlight
     const p = s.player;
@@ -516,7 +623,8 @@ export class Renderer {
     this.flashlight.intensity = on ? 38 * Math.min(1, 0.4 + (fl!.charge ?? 0)) : 0;
     this.flashlight.position.set(p.x + Math.cos(p.facing) * 0.3, 1.3, p.y + Math.sin(p.facing) * 0.3);
     this.flashlight.target.position.set(p.x + Math.cos(p.facing) * 8, 0, p.y + Math.sin(p.facing) * 8);
-    this.flashlight.castShadow = on && this.quality === 'high';
+    this.flashlight.castShadow = on && this.profile.spotShadows;
+    this.flashlight.visible = on;
     // headlights
     if (p.inVehicle >= 0) {
       const v = s.vehicles[p.inVehicle];
@@ -525,17 +633,28 @@ export class Renderer {
       const sn = Math.sin(v.heading);
       for (const [light, side] of [[this.headL, 0.6], [this.headR, -0.6]] as [THREE.SpotLight, number][]) {
         light.intensity = on2 ? 55 : 0;
+        light.visible = on2;
         light.position.set(v.x + c * 2.2 - sn * side, 0.9, v.y + sn * 2.2 + c * side);
         light.target.position.set(v.x + c * 14 - sn * side, 0, v.y + sn * 14 + c * side);
       }
     } else {
       this.headL.intensity = 0;
       this.headR.intensity = 0;
+      this.headL.visible = false;
+      this.headR.visible = false;
     }
     void rt;
   }
 
+  private frameNo = 0;
   render(): void {
+    // medium tier: redraw the sun's shadow map every other frame
+    const sm = this.gl.shadowMap;
+    if (sm.enabled && this.profile.tier === 'medium') {
+      sm.autoUpdate = false;
+      if ((this.frameNo & 1) === 0) sm.needsUpdate = true;
+    } else sm.autoUpdate = true;
+    this.frameNo++;
     this.gl.render(this.scene, this.camera);
   }
 }
