@@ -1,7 +1,7 @@
 // Initial zombie population. Zombies are placed where people would plausibly have been when it started —
 // never near the survivor's starting point. After this, no zombie is ever conjured near the player.
 import type { Rng } from '../core/rng';
-import { S, G, type World, ZONE_RES, ZONE_COM, ZONE_IND, ZONE_PARK, ZONE_FOREST, ZONE_HIGHWAY, ZONE_FARM, ZONE_WILD } from '../world/world';
+import { S, G, type World, ZONE_RES, ZONE_COM, ZONE_IND, ZONE_PARK, ZONE_FOREST, ZONE_HIGHWAY, ZONE_FARM, ZONE_WILD, ZONE_MIL } from '../world/world';
 import { FURN } from '../world/furniture';
 import type { GameState, Zombie, ZKind } from './types';
 import { makeItem } from './items';
@@ -99,7 +99,9 @@ export function populate(s: GameState, rng: Rng, avoid: { x: number; y: number; 
   // --- inside buildings
   const per: Record<string, [number, number, ZKind]> = {
     house: [0, 2, 'civ'], apartment: [3, 7, 'civ'], grocery: [3, 7, 'civ'], pharmacy: [1, 3, 'civ'], hardware: [1, 3, 'worker'],
-    diner: [2, 5, 'civ'], bar: [3, 6, 'civ'], police: [3, 6, 'cop'], clinic: [4, 8, 'medic'], gas: [1, 2, 'civ'],
+    diner: [2, 5, 'civ'], bar: [3, 6, 'civ'], police: [4, 8, 'cop'], clinic: [4, 8, 'medic'], gas: [1, 2, 'civ'],
+    gunstore: [1, 3, 'civ'], hospital: [14, 22, 'medic'], firestation: [2, 4, 'worker'], school: [5, 10, 'civ'], sporting: [1, 3, 'civ'],
+    military: [3, 5, 'soldier'],
     garage: [1, 2, 'worker'], motel: [3, 6, 'civ'], warehouse: [3, 6, 'worker'], factory: [4, 8, 'worker'],
     church: [6, 11, 'civ'], office: [2, 4, 'civ'], farmhouse: [1, 3, 'farmer'], barn: [0, 2, 'farmer'], cabin: [0, 1, 'civ'],
     shed: [0, 0, 'civ'], checkpoint: [1, 2, 'soldier'],
@@ -130,7 +132,7 @@ export function populate(s: GameState, rng: Rng, avoid: { x: number; y: number; 
 
   // --- outdoors, by zone
   const zoneTarget: Record<number, number> = {
-    [ZONE_RES]: 95, [ZONE_COM]: 85, [ZONE_IND]: 30, [ZONE_PARK]: 12, [ZONE_FOREST]: 22, [ZONE_HIGHWAY]: 14, [ZONE_FARM]: 7, [ZONE_WILD]: 10,
+    [ZONE_RES]: 105, [ZONE_COM]: 95, [ZONE_IND]: 30, [ZONE_PARK]: 12, [ZONE_FOREST]: 22, [ZONE_HIGHWAY]: 14, [ZONE_FARM]: 7, [ZONE_WILD]: 10, [ZONE_MIL]: 10,
   };
   const byZone: Record<number, number[]> = {};
   for (let i = 0; i < w.w * w.h; i++) {
@@ -154,7 +156,7 @@ export function populate(s: GameState, rng: Rng, avoid: { x: number; y: number; 
       const size = Math.min(n, rng.weighted([[1, 5], [2, 3], [3, 2], [4, 1]]));
       let placed = 0;
       for (let k = 0; k < size * 4 && placed < size; k++) {
-        const kind: ZKind = zone === ZONE_IND ? (rng.chance(0.6) ? 'worker' : 'civ') : zone === ZONE_FARM ? 'farmer' : 'civ';
+        const kind: ZKind = zone === ZONE_IND ? (rng.chance(0.6) ? 'worker' : 'civ') : zone === ZONE_FARM ? 'farmer' : zone === ZONE_MIL ? 'soldier' : 'civ';
         if (place(cx + rng.int(-2, 2), cy + rng.int(-2, 2), kind)) placed++;
       }
       n -= Math.max(1, placed);

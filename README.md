@@ -2,10 +2,16 @@
 
 An isometric zombie survival sandbox about small mistakes that snowball into disasters.
 
-You are one survivor in **Cedar Hollow**, a small procedurally generated town (houses, a main street
-of shops, a police station, a clinic, a gas station, a motel, apartments, a church, a warehouse and a
-cannery, a farm, hunting cabins, a river, a highway with an abandoned military checkpoint and a
-pile-up). There are no missions. The only goal is to survive for as long as you can.
+You are one survivor in **Cedar Hollow**, a small procedurally generated town. Every new world deals
+the town's places out to different blocks, so each one has to be scouted: a police station (with a
+locked armory — find the key) next to the fire station (axes, turnout coats, a fire engine), a gun store
+(locked, alarmed, full of guns), a sporting goods store, a hospital packed with the dead and with
+medicine, a school, a grocery and pharmacy, a hardware store, a diner and bar, a gas station and auto
+shop, a motel, apartments, a clinic, a church, a warehouse and a cannery. Outside town: a farm, hunting
+and fishing cabins, the river, a highway with an abandoned checkpoint and a pile-up, and Camp Harlan, a
+fenced army outpost with barracks, a mess hall and an armory. Guns are rare in homes: getting one
+means planning a run. Places appear on your map once you've seen them (or all at once if you find a
+town map). There are no missions. The only goal is to survive for as long as you can.
 
 The game is designed around one rule:
 

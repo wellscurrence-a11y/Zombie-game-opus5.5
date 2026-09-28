@@ -29,6 +29,8 @@ export const VEH: Record<VehType, VehSpec> = {
   police: { name: 'Police cruiser', w: 2.0, l: 4.6, top: 33, accel: 5.2, mass: 1.1, fuelCap: 60, burn: 0.014, trunk: 40, seats: 4, height: 1.5, colors: [0x1f2a38] },
   truck: { name: 'Box truck', w: 2.5, l: 7.0, top: 21, accel: 2.4, mass: 2.8, fuelCap: 150, burn: 0.03, trunk: 200, seats: 2, height: 3.0, colors: [0xcfcbc0, 0x7d6b4f, 0x4b5a66] },
   military: { name: 'Military truck', w: 2.5, l: 6.0, top: 23, accel: 3.0, mass: 2.6, fuelCap: 120, burn: 0.026, trunk: 150, seats: 2, height: 2.8, colors: [0x4c5536] },
+  firetruck: { name: 'Fire engine', w: 2.5, l: 7.4, top: 22, accel: 2.6, mass: 3.0, fuelCap: 180, burn: 0.034, trunk: 120, seats: 2, height: 3.0, colors: [0xa3211c] },
+  ambulance: { name: 'Ambulance', w: 2.3, l: 5.8, top: 27, accel: 3.4, mass: 1.8, fuelCap: 80, burn: 0.02, trunk: 70, seats: 2, height: 2.6, colors: [0xe4e0d6] },
   sports: { name: 'Sports car', w: 1.9, l: 4.2, top: 38, accel: 6.5, mass: 0.9, fuelCap: 45, burn: 0.015, trunk: 15, seats: 2, height: 1.2, colors: [0x9e1b1b, 0x1b3f9e, 0xd9b31a, 0x1d1d1d] },
 };
 
@@ -80,7 +82,7 @@ export function createVehicle(w: World, rng: Rng, uid: UidSource, id: number, sp
     const cands: number[] = [];
     for (const rid of b.rooms) {
       const r = w.rooms[rid];
-      if (!['kitchen', 'living', 'bedroom', 'office', 'garage', 'cabin', 'waiting'].includes(r.type)) continue;
+      if (!['kitchen', 'living', 'bedroom', 'office', 'garage', 'cabin', 'waiting', 'command', 'reception', 'gearRoom'].includes(r.type)) continue;
       for (let y = r.y0; y <= r.y1; y++) {
         for (let x = r.x0; x <= r.x1; x++) {
           const fi = w.furn[y * w.w + x];

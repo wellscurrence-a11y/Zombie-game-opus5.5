@@ -258,6 +258,7 @@ C('denimJacket', 'Denim jacket', 1.1, 'outer', 2.5, 0.3, 0.12, ['torso', ...ARMS
 C('leatherJacket', 'Leather jacket', 1.8, 'outer', 3.5, 0.55, 0.3, ['torso', ...ARMS], 0.3, 'Thick leather turns aside many scratches and some bites.');
 C('winterCoat', 'Winter coat', 2.0, 'outer', 9, 0.35, 0.15, ['torso', ...ARMS], 0.4);
 C('raincoat', 'Raincoat', 0.6, 'outer', 1.5, 0.1, 0.02, ['torso', ...ARMS], 0.9, 'Keeps you dry. Wet clothes steal body heat fast.');
+C('fireJacket', 'Firefighter jacket', 2.2, 'outer', 2.2, 0.8, 0.5, ['torso', ...ARMS], 0.7, 'Heavy turnout coat: tough against nails and teeth, warm and waterproof.');
 C('vest', 'Kevlar vest', 3.0, 'outer', 1.5, 0.7, 0.6, ['torso'], 0, 'Excellent torso protection. Does nothing for your arms.');
 C('jeans', 'Jeans', 0.7, 'legs', 2.0, 0.28, 0.12, ['lLeg', 'rLeg']);
 C('slacks', 'Slacks', 0.5, 'legs', 1.5, 0.1, 0.03, ['lLeg', 'rLeg']);

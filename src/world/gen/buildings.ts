@@ -808,3 +808,216 @@ export function outdoor(g: Gen, kind: FurnKind, x: number, y: number, rot = 0, l
   }
   return placeFurn(g, kind, x, y, rot, -1, loot);
 }
+
+// =================================================================== GUN STORE
+/** Locked, alarmed, barred. Everything worth dying for sits behind glass. */
+export function genGunStore(g: Gen, x0: number, y0: number, flip: boolean): Frame {
+  const W = 14;
+  const H = 12;
+  const f = makeFrame(g, 'gunstore', 'Hollow Arms & Ammo', x0, y0, W, H, flip, { alarm: 0.9, wallColor: 0x7d7468, roofColor: 0x2f2c2a });
+  f.wallH(7, 1, W - 2);
+  f.wallV(6, 8, H - 2);
+  const floor = f.room('gunshop', 1, 1, W - 2, 6);
+  const office = f.room('office', 1, 8, 5, H - 2);
+  const back = f.room('storage', 7, 8, W - 2, H - 2);
+  const d = f.door(6, 0, 'glass', true, true);
+  f.door(7, 0, 'glass', true, true);
+  f.bb.alarmPanelNear(d);
+  f.door(3, 7, 'wood', false, false);
+  const ammoDoor = f.door(10, 7, 'metal', false, true);
+  f.door(W - 1, 10, 'metal', true, true);
+  frontWindows(f, new Set([6, 7]), false, 4);
+  // display cases across the floor, rifles racked on the side walls
+  for (let lx = 2; lx <= W - 3; lx++) if (lx < 5 || lx > 8) f.furn(floor, 'guncase', lx, 3, 0);
+  for (let ly = 2; ly <= 5; ly++) {
+    f.furn(floor, 'gunrack', 1, ly, 1);
+    f.furn(floor, 'gunrack', W - 2, ly, 3);
+  }
+  f.furn(floor, 'checkout', 5, 5, 0);
+  furnishWall(g, office, 'desk', 'gunstore|office');
+  furnishWall(g, office, 'filing', 'gunstore|office');
+  for (let i = 0; i < 4; i++) furnishWall(g, back, i % 2 ? 'crate' : 'shelf', 'gunstore|storage');
+  // the ammo room has its own key, kept in the office
+  const w = g.w;
+  const k = w.nextKeyId++;
+  w.doors[ammoDoor].keyId = k;
+  hideKey(g, f.bb.b.id, ['office'], 'Storeroom key (gun store)', 'houseKey', k);
+  return f;
+}
+
+// =================================================================== SPORTING GOODS
+export function genSporting(g: Gen, x0: number, y0: number, flip: boolean): Frame {
+  const W = 18;
+  const H = 14;
+  const f = makeFrame(g, 'sporting', 'Trailhead Sporting Goods', x0, y0, W, H, flip, { alarm: 0.55, wallColor: 0x6f7f6a });
+  f.wallH(9, 1, W - 2);
+  const floor = f.room('sportshop', 1, 1, W - 2, 8);
+  const back = f.room('storage', 1, 10, W - 2, H - 2);
+  const d = f.door(8, 0, 'glass', true);
+  f.door(9, 0, 'glass', true);
+  f.bb.alarmPanelNear(d);
+  f.door(4, 9, 'wood', false, false);
+  f.door(W - 1, 11, 'metal', true);
+  frontWindows(f, new Set([8, 9]), true, 2);
+  aisles(f, floor, 3, 12, 3, 6, 3);
+  for (let ly = 2; ly <= 7; ly++) f.furn(floor, 'rack', W - 2, ly, 3);
+  f.furn(floor, 'guncase', 2, 8, 2);
+  f.furn(floor, 'guncase', 3, 8, 2);
+  f.furn(floor, 'checkout', 13, 2, 0);
+  for (let i = 0; i < 5; i++) furnishWall(g, back, i % 2 ? 'crate' : 'shelf', 'sporting|storage');
+  return f;
+}
+
+// =================================================================== FIRE STATION
+export function genFireStation(g: Gen, x0: number, y0: number, flip: boolean): { f: Frame; truck: { x: number; y: number; heading: number } } {
+  const W = 18;
+  const H = 18;
+  const f = makeFrame(g, 'firestation', 'Cedar Hollow Fire Dept.', x0, y0, W, H, flip, { alarm: 0.2, wallColor: 0x9a4a3c, roofColor: 0x3a3634 });
+  f.wallV(10, 1, H - 2);
+  f.wallH(6, 11, W - 2);
+  f.wallH(11, 11, W - 2);
+  const bay = f.room('fireBay', 1, 1, 9, H - 2);
+  const gear = f.room('gearRoom', 11, 1, W - 2, 5);
+  const office = f.room('office', 11, 7, W - 2, 10);
+  const dorm = f.room('dorm', 11, 12, W - 2, H - 2);
+  for (let lx = 3; lx <= 6; lx++) f.door(lx, 0, 'garage', true, false);
+  f.door(14, 0, 'glass', true);
+  f.door(14, 6, 'wood', false, false);
+  f.door(14, 11, 'wood', false, false);
+  f.door(10, 3, 'wood', false, false);
+  f.door(10, 14, 'wood', false, false);
+  f.door(5, H - 1, 'metal', true);
+  f.door(W - 1, 14, 'metal', true);
+  f.bb.autoWindows(4, false, ['e'], 0.8);
+  frontWindows(f, new Set([3, 4, 5, 6, 14]), false, 3);
+  f.furn(bay, 'toolchest', 1, 2, 1);
+  f.furn(bay, 'shelf', 1, 4, 1);
+  f.furn(bay, 'workbench', 8, H - 4, 3);
+  furnishRoom(g, f.bb.b, gear);
+  furnishRoom(g, f.bb.b, office);
+  furnishRoom(g, f.bb.b, dorm);
+  furnishWall(g, dorm, 'fridge', 'firestation|dorm');
+  // the engine waits nose-out behind the bay doors
+  const truck = { x: f.X(5), y: f.Y(9) + 0.5, heading: flip ? Math.PI / 2 : -Math.PI / 2 };
+  return { f, truck };
+}
+
+// =================================================================== SCHOOL
+export function genSchool(g: Gen, x0: number, y0: number, flip: boolean): Frame {
+  const W = 34;
+  const H = 18;
+  const f = makeFrame(g, 'school', 'Cedar Hollow Elementary', x0, y0, W, H, flip, { alarm: 0.35, wallColor: 0xb4927a, roofColor: 0x4a4440 });
+  f.wallH(4, 1, W - 2);
+  f.wallV(8, 5, H - 2);
+  f.wallV(16, 5, H - 2);
+  f.wallV(25, 5, H - 2);
+  f.wallH(10, 26, W - 2);
+  const hall = f.room('hallway', 1, 1, W - 2, 3);
+  const a = f.room('classroom', 1, 5, 7, H - 2);
+  const b = f.room('classroom', 9, 5, 15, H - 2);
+  const caf = f.room('cafeteria', 17, 5, 24, H - 2);
+  const nurse = f.room('nurse', 26, 5, W - 2, 9);
+  const office = f.room('office', 26, 11, W - 2, H - 2);
+  const d = f.door(16, 0, 'glass', true);
+  f.door(17, 0, 'glass', true);
+  f.bb.alarmPanelNear(d);
+  f.door(4, 4, 'wood', false, false);
+  f.door(12, 4, 'wood', false, false);
+  f.door(20, 4, 'wood', false, false);
+  f.door(29, 4, 'wood', false, false);
+  f.door(29, 10, 'wood', false, g.rng.chance(0.4));
+  f.door(20, H - 1, 'metal', true);
+  f.door(0, 2, 'metal', true);
+  f.door(W - 1, 2, 'metal', true);
+  frontWindows(f, new Set([16, 17]), false, 3);
+  f.bb.autoWindows(3, false, ['s', 'e', 'w'], 0.8);
+  for (let i = 0; i < 8; i++) furnishWall(g, hall, 'locker', 'school|hallway');
+  for (const r of [a, b, caf, nurse, office]) furnishRoom(g, f.bb.b, r);
+  hideKey(g, f.bb.b.id, ['office'], 'School key');
+  return f;
+}
+
+// =================================================================== HOSPITAL
+export function genHospital(g: Gen, x0: number, y0: number, flip: boolean): Frame {
+  const W = 36;
+  const H = 24;
+  const f = makeFrame(g, 'hospital', 'Mercy County Hospital', x0, y0, W, H, flip, { alarm: 0.3, wallColor: 0xd2cdc2, roofColor: 0x55595d });
+  f.wallH(6, 1, W - 2);
+  f.wallH(9, 1, W - 2);
+  for (const lx of [8, 16, 24, 30]) f.wallV(lx, 10, H - 2);
+  const rec = f.room('reception', 1, 1, W - 2, 5);
+  f.room('hallway', 1, 7, W - 2, 8);
+  const w1 = f.room('ward', 1, 10, 7, H - 2);
+  const w2 = f.room('ward', 9, 10, 15, H - 2);
+  const surg = f.room('surgery', 17, 10, 23, H - 2);
+  const pharm = f.room('hospitalPharmacy', 25, 10, 29, H - 2);
+  const store = f.room('storage', 31, 10, W - 2, H - 2);
+  // the doors were left open when the wards filled up
+  f.door(17, 0, 'glass', true, false);
+  f.door(18, 0, 'glass', true, false);
+  f.door(5, 6, 'wood', false, false);
+  f.door(30, 6, 'wood', false, false);
+  f.door(4, 9, 'wood', false, false);
+  f.door(12, 9, 'wood', false, false);
+  f.door(20, 9, 'wood', false, false);
+  const pd = f.door(27, 9, 'metal', false, true);
+  f.door(32, 9, 'wood', false, g.rng.chance(0.5));
+  f.door(0, 7, 'metal', true);
+  f.door(W - 1, 8, 'metal', true);
+  frontWindows(f, new Set([17, 18]), true, 2);
+  f.bb.autoWindows(3, false, ['s', 'e', 'w'], 0.85);
+  for (const r of [rec, w1, w2, surg, pharm, store]) furnishRoom(g, f.bb.b, r);
+  furnishWall(g, store, 'shelf', 'hospital|storage');
+  furnishWall(g, store, 'shelf', 'hospital|storage');
+  const w = g.w;
+  const k = w.nextKeyId++;
+  w.doors[pd].keyId = k;
+  hideKey(g, f.bb.b.id, ['reception'], 'Pharmacy key (hospital)', 'houseKey', k);
+  return f;
+}
+
+// =================================================================== MILITARY OUTPOST
+export function genBarracks(g: Gen, x0: number, y0: number, flip: boolean, name: string): Frame {
+  const W = 16;
+  const H = 9;
+  const f = makeFrame(g, 'military', name, x0, y0, W, H, flip, { alarm: 0, wallColor: 0x6b6a4f, roofColor: 0x3f4234 });
+  const r = f.room('barracks', 1, 1, W - 2, H - 2);
+  f.door(7, 0, 'wood', true, false);
+  f.door(8, H - 1, 'wood', true, g.rng.chance(0.5));
+  f.bb.autoWindows(3, false, ['n', 's'], 0.7);
+  furnishRoom(g, f.bb.b, r);
+  return f;
+}
+
+export function genMessHall(g: Gen, x0: number, y0: number, flip: boolean): Frame {
+  const W = 14;
+  const H = 10;
+  const f = makeFrame(g, 'military', 'Camp Harlan Mess Hall', x0, y0, W, H, flip, { alarm: 0, wallColor: 0x6b6a4f, roofColor: 0x3f4234 });
+  const r = f.room('messHall', 1, 1, W - 2, H - 2);
+  f.door(6, 0, 'wood', true, false);
+  f.door(W - 1, 6, 'metal', true);
+  f.bb.autoWindows(3, false, ['n', 'e', 'w'], 0.7);
+  furnishRoom(g, f.bb.b, r);
+  return f;
+}
+
+/** Command post with the armory behind it. The armory key is in the commander's desk. */
+export function genCommand(g: Gen, x0: number, y0: number, flip: boolean): Frame {
+  const W = 14;
+  const H = 10;
+  const f = makeFrame(g, 'military', 'Camp Harlan Command', x0, y0, W, H, flip, { alarm: 0, wallColor: 0x5f604a, roofColor: 0x3a3c30 });
+  f.wallV(7, 1, H - 2);
+  const cmd = f.room('command', 1, 1, 6, H - 2);
+  const arm = f.room('armory', 8, 1, W - 2, H - 2);
+  f.door(3, 0, 'wood', true, false);
+  const ad = f.door(7, 5, 'metal', false, true);
+  f.bb.autoWindows(3, false, ['n', 'w'], 0.7);
+  furnishRoom(g, f.bb.b, cmd);
+  furnishRoom(g, f.bb.b, arm);
+  furnishWall(g, arm, 'gunrack', 'military|armory');
+  const w = g.w;
+  const k = w.nextKeyId++;
+  w.doors[ad].keyId = k;
+  hideKey(g, f.bb.b.id, ['command'], 'Armory key (Camp Harlan)', 'houseKey', k);
+  return f;
+}

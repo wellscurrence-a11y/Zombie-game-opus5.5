@@ -222,7 +222,7 @@ export interface Corpse {
   crawler?: boolean;
 }
 
-export type VehType = 'sedan' | 'hatch' | 'pickup' | 'van' | 'police' | 'truck' | 'military' | 'sports';
+export type VehType = 'sedan' | 'hatch' | 'pickup' | 'van' | 'police' | 'truck' | 'military' | 'sports' | 'firetruck' | 'ambulance';
 
 export interface Vehicle {
   id: number;

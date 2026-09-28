@@ -96,6 +96,8 @@ export const FURN: Record<FurnKind, FurnDef> = {
   lumber: D({ name: 'Lumber stack', h: 1.0, weight: 0, container: { kind: 'crate', cap: 60 }, vault: true, hp: 150 }),
   tractor: D({ name: 'Old tractor', len: 2, h: 2.0, tall: false, weight: 0, flammable: 0.1, hp: 500 }),
   silo: D({ name: 'Grain silo', h: 6, tall: true, weight: 0, flammable: 0, hp: 1000 }),
+  guncase: D({ name: 'Display case', h: 1.0, weight: 0, container: { kind: 'guncase', cap: 12 }, flammable: 0.1, hp: 60 }),
+  gunrack: D({ name: 'Gun rack', h: 2.0, tall: true, weight: 0, container: { kind: 'gunrack', cap: 20 }, flammable: 0.05, hp: 120 }),
   cashbox: D({ name: 'Service counter', h: 1.0, weight: 0, container: { kind: 'register', cap: 8 }, vault: true, hp: 100 }),
   lamptable: D({ name: 'Lamp', h: 1.4, solid: false, weight: 3, lamp: true, hp: 10 }),
 };

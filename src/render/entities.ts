@@ -385,10 +385,23 @@ function vehicleGeometry(v: Vehicle): THREE.BufferGeometry {
     b.box(-L * 0.28, 1.0, W / 2 - 0.05, L * 0.42, 0.25, 0.08, col);
     b.box(-L * 0.28, 1.0, -W / 2 + 0.05, L * 0.42, 0.25, 0.08, col);
     b.box(-L / 2 + 0.05, 1.0, 0, 0.08, 0.25, W, col);
-  } else if (v.type === 'van' || v.type === 'truck' || v.type === 'military') {
-    const cab = v.type === 'van' ? 0.3 : 0.25;
+  } else if (v.type === 'van' || v.type === 'truck' || v.type === 'military' || v.type === 'firetruck' || v.type === 'ambulance') {
+    const cab = v.type === 'van' || v.type === 'ambulance' ? 0.3 : 0.25;
     b.box(0, 0.75, 0, L, 0.7, W, col);
     b.box(-L * (0.5 - (1 - cab) / 2), 1.9, 0, L * (1 - cab), 1.6, W, v.type === 'military' ? 0x5a6242 : v.type === 'truck' ? 0xd8d4c8 : col);
+    if (v.type === 'ambulance') {
+      b.box(-L * 0.1, 1.5, W / 2 + 0.005, L * 0.6, 0.22, 0.01, 0xb3261e);
+      b.box(-L * 0.1, 1.5, -W / 2 - 0.005, L * 0.6, 0.22, 0.01, 0xb3261e);
+    }
+    if (v.type === 'firetruck') {
+      b.box(-L * 0.12, 2.78, 0, L * 0.6, 0.1, 0.5, 0xb8b8b0);
+      b.box(0, 1.25, W / 2 + 0.005, L * 0.9, 0.12, 0.01, 0xe8e2c8);
+      b.box(0, 1.25, -W / 2 - 0.005, L * 0.9, 0.12, 0.01, 0xe8e2c8);
+    }
+    if (v.type === 'firetruck' || v.type === 'ambulance') {
+      b.box(L * (0.5 - cab / 2), 1.99, 0.3, 0.25, 0.1, 0.35, 0xc82a2a);
+      b.box(L * (0.5 - cab / 2), 1.99, -0.3, 0.25, 0.1, 0.35, v.type === 'ambulance' ? 0x2a4ac8 : 0xc82a2a);
+    }
     b.box(L * (0.5 - cab / 2), 1.45, 0, L * cab, 0.75, W * 0.95, win(0));
     b.box(L * (0.5 - cab / 2), 1.88, 0, L * cab, 0.12, W, col);
   } else {

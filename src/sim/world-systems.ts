@@ -282,11 +282,46 @@ export function updateWorld(s: GameState, rt: Runtime, dt: number, hours: number
   }
 }
 
+const NOTABLE_SKIP = new Set(['house', 'shed']);
+
+/** Buildings the survivor has laid eyes on appear on the map; notable ones get a line in the log. */
+function spotPlaces(s: GameState, rt: Runtime): void {
+  const w = s.world;
+  if (s.player.dead || s.player.sleeping) return;
+  for (const i of rt.visList) {
+    const bid = w.bld[i];
+    if (bid < 0) continue;
+    const b = w.buildings[bid];
+    if (b.seen) continue;
+    b.seen = true;
+    if (NOTABLE_SKIP.has(b.kind)) continue;
+    if (b.kind === 'military') {
+      // the camp is one place
+      if (w.buildings.some((o) => o.kind === 'military' && o !== b && o.seen)) continue;
+      log(s, 'You spot a fenced army camp: Camp Harlan. Soldiers kept guns and rations there.', 'info');
+      continue;
+    }
+    const hint: Record<string, string> = {
+      police: ' Its armory could hold guns — the key will be somewhere inside.',
+      gunstore: ' Locked, alarmed, and full of guns.',
+      hospital: ' Medicine — and a lot of the dead.',
+      firestation: ' Axes, protective gear, maybe an engine that still runs.',
+      school: '',
+      sporting: ' Camping and fishing gear, bats, maybe a hunting rifle.',
+      pharmacy: ' Medicine, if nobody beat you to it.',
+      grocery: ' Food, if it hasn\'t been picked clean.',
+      hardware: ' Tools, nails and planks.',
+    };
+    log(s, `You spot ${b.name}${b.name.endsWith('.') ? '' : '.'}${hint[b.kind] ?? ''}`, 'info');
+  }
+}
+
 function perSecond(s: GameState, rt: Runtime, dt: number): void {
   const w = s.world;
   const p = s.player;
   const hours = realToGame(s, dt);
   updateCooking({ s, rt }, hours);
+  spotPlaces(s, rt);
   // building alarms
   rt.alarmSound = 0;
   for (const b of w.buildings) {

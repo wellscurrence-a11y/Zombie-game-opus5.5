@@ -367,14 +367,30 @@ export function drawMap(g: Game, canvas: HTMLCanvasElement): void {
   ctx.drawImage(tmp, 0, 0, w.w * sc, w.h * sc);
   ctx.font = '10px IBM Plex Mono, monospace';
   ctx.textAlign = 'center';
+  const campSeen = w.buildings.some((b) => b.kind === 'military' && (b.seen || b.visited));
+  // labels: one per name, nudged apart so neighbours don't print over each other
+  const placed: { x0: number; y0: number; x1: number; y1: number }[] = [];
+  const names = new Set<string>();
   for (const lm of w.landmarks) {
     const b = w.buildings[lm.bld];
-    if (!b.visited && !known) continue;
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    const found = b.kind === 'military' ? campSeen : b.seen || b.visited;
+    if ((!found && !known) || names.has(lm.name)) continue;
     const tw = ctx.measureText(lm.name).width;
-    ctx.fillRect(lm.x * sc - tw / 2 - 2, lm.y * sc - 8, tw + 4, 11);
-    ctx.fillStyle = '#e8dcc0';
-    ctx.fillText(lm.name, lm.x * sc, lm.y * sc);
+    let pos: { x0: number; y0: number; x1: number; y1: number } | null = null;
+    for (const dy of [0, 12, -12, 24, -24, 36]) {
+      const r = { x0: lm.x * sc - tw / 2 - 2, y0: lm.y * sc - 8 + dy, x1: lm.x * sc + tw / 2 + 2, y1: lm.y * sc + 3 + dy };
+      if (!placed.some((q) => r.x0 < q.x1 && q.x0 < r.x1 && r.y0 < q.y1 && q.y0 < r.y1)) {
+        pos = r;
+        break;
+      }
+    }
+    if (!pos) continue;
+    names.add(lm.name);
+    placed.push(pos);
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(pos.x0, pos.y0, pos.x1 - pos.x0, pos.y1 - pos.y0);
+    ctx.fillStyle = b.kind === 'house' ? '#bfb6a0' : '#e8dcc0';
+    ctx.fillText(lm.name, lm.x * sc, pos.y1 - 3);
   }
   for (const v of s.vehicles) {
     if (!w.explored[Math.floor(v.y) * w.w + Math.floor(v.x)]) continue;

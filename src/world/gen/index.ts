@@ -3,21 +3,28 @@ import { Rng, fbm, hash01 } from '../../core/rng';
 import {
   G, S, MAP_W, MAP_H, createWorld, inB, type World,
   MARK_CENTER_H, MARK_CENTER_V, MARK_EDGE_N, MARK_EDGE_S, MARK_EDGE_W, MARK_EDGE_E, MARK_CROSS, MARK_STALL,
-  ZONE_RES, ZONE_COM, ZONE_IND, ZONE_FARM, ZONE_FOREST, ZONE_HIGHWAY, ZONE_PARK, ZONE_WILD,
+  ZONE_RES, ZONE_COM, ZONE_IND, ZONE_FARM, ZONE_FOREST, ZONE_HIGHWAY, ZONE_PARK, ZONE_WILD, ZONE_MIL,
 } from '../world';
 import type { Gen, VehicleSpawn } from './builder';
 import { nearDoor, placeFurn } from './builder';
 import {
-  genApartment, genAutoRepair, genBar, genBarn, genCabin, genChurch, genClinic, genDiner, genFactory, genGasStation,
-  genGrocery, genHardware, genHouse, genMotel, genOffice, genPharmacy, genPolice, genShed, genTent, genWarehouse, hideKey, outdoor,
+  genApartment, genAutoRepair, genBar, genBarn, genBarracks, genCabin, genChurch, genClinic, genCommand, genDiner, genFactory,
+  genFireStation, genGasStation, genGrocery, genGunStore, genHardware, genHospital, genHouse, genMessHall, genMotel, genOffice,
+  genPharmacy, genPolice, genSchool, genShed, genSporting, genTent, genWarehouse, hideKey, outdoor,
 } from './buildings';
 
-export const VX = [40, 92, 144, 196, 248];
+/** Street grid. The last column (Fir Street) only runs through the middle three rows: the farm sits north of it. */
+export const VX = [40, 92, 144, 196, 248, 300];
 export const HY = [52, 100, 148, 196, 244];
 const RW = 7;
-const V_NAMES = ['Ash Street', 'Birch Street', 'Cedar Street', 'Dogwood Street', 'Elm Street'];
+const V_NAMES = ['Ash Street', 'Birch Street', 'Cedar Street', 'Dogwood Street', 'Elm Street', 'Fir Street'];
 const H_NAMES = ['North Road', 'Hill Avenue', 'Main Street', 'Lake Avenue', 'Mill Road'];
-export const TOWN = { x0: 36, y0: 48, x1: 258, y1: 256 };
+export const TOWN = { x0: 36, y0: 48, x1: 310, y1: 256 };
+/** Grid cells that exist: the east column has no north-row block (the farm). */
+const LAST = VX.length - 1;
+function hasRoadH(j: number, x: number): boolean {
+  return j > 0 || x <= VX[LAST - 1] + RW + 1;
+}
 export const HIGHWAY = { x0: 12, x1: 22 };
 
 export interface GenResult {
@@ -43,7 +50,7 @@ export function generateWorld(seed: number): GenResult {
   streetVehicles(g);
   lamps(g);
   for (const b of w.buildings) {
-    if (b.kind !== 'house' && b.kind !== 'shed') {
+    if (b.kind !== 'house' && b.kind !== 'shed' && b.kind !== 'military') {
       w.landmarks.push({ name: b.name, x: (b.x0 + b.x1) / 2, y: (b.y0 + b.y1) / 2, bld: b.id });
     }
   }
@@ -195,12 +202,12 @@ function roads(g: Gen): void {
   // Town grid
   for (let j = 0; j < HY.length; j++) {
     const zone = j === 2 ? ZONE_COM : j === 4 ? ZONE_IND : ZONE_RES;
-    roadH(w, HY[j], VX[0] - 2, VX[VX.length - 1] + RW + 1, true, zone);
+    roadH(w, HY[j], VX[0] - 2, (j === 0 ? VX[LAST - 1] : VX[LAST]) + RW + 1, true, zone);
   }
-  for (let i = 0; i < VX.length; i++) roadV(w, VX[i], HY[0] - 2, HY[HY.length - 1] + RW + 1, true, ZONE_RES);
+  for (let i = 0; i < VX.length; i++) roadV(w, VX[i], (i === LAST ? HY[1] : HY[0]) - 2, HY[HY.length - 1] + RW + 1, true, ZONE_RES);
   // Main Street west to the highway and east as a county road.
   roadH(w, HY[2], HIGHWAY.x1 + 1, VX[0] - 3, false, ZONE_COM);
-  roadH(w, HY[2], VX[VX.length - 1] + RW + 2, 304, false, ZONE_WILD);
+  roadH(w, HY[2], VX[LAST] + RW + 2, w.w - 1, false, ZONE_WILD);
   // Intersections: clear markings, paint crosswalks.
   const clearMarks = (x0: number, y0: number, x1: number, y1: number): void => {
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (w.ground[y * w.w + x] === G.Road) w.groundVar[y * w.w + x] = 0;
@@ -231,8 +238,7 @@ function blockRect(i: number, j: number): BlockRect {
 function blocks(g: Gen, houses: number[], quiet: number[]): void {
   const w = g.w;
   const rng = g.rng;
-  const res = (i: number, j: number, halves: { top: boolean; bottom: boolean } = { top: true, bottom: true }, isQuiet = false): void => {
-    const b = blockRect(i, j);
+  const res = (b: BlockRect, j: number, halves: { top: boolean; bottom: boolean } = { top: true, bottom: true }, isQuiet = false): void => {
     const mid = b.y0 + Math.floor((b.y1 - b.y0 + 1) / 2);
     if (halves.top) resRow(g, b.x0, b.x1, b.y0, mid - 1, 'n', H_NAMES[j], houses, isQuiet ? quiet : null);
     if (halves.bottom) resRow(g, b.x0, b.x1, mid + 1, b.y1, 's', H_NAMES[j + 1], houses, isQuiet ? quiet : null);
@@ -244,106 +250,145 @@ function blocks(g: Gen, houses: number[], quiet: number[]): void {
     }
     for (let y = b.y0; y <= b.y1; y++) for (let x = b.x0; x <= b.x1; x++) w.zone[y * w.w + x] = ZONE_RES;
   };
+  /** Houses along the north road of a block, down to row `midOff`. */
+  const northHouses = (b: BlockRect, j: number, midOff: number): void => resRow(g, b.x0, b.x1, b.y0, b.y0 + midOff - 1, 'n', H_NAMES[j], houses, null);
+  const southHouses = (b: BlockRect, j: number, midOff: number): void => resRow(g, b.x0, b.x1, b.y0 + midOff + 1, b.y1, 's', H_NAMES[j + 1], houses, null);
 
-  res(0, 0, undefined, true);
-  res(1, 0, undefined, true);
+  // What can stand on a town block. Each world deals these out to different blocks, so every town
+  // has to be scouted: the police station, the hospital or the gun store may be anywhere.
+  const recipes: Record<string, (b: BlockRect, j: number) => void> = {
+    gasAuto: (b, j) => {
+      const mid = b.y0 + 18;
+      northHouses(b, j, 18);
+      fill(w, b.x0, mid + 1, b.x0 + 21, b.y1, G.Parking, ZONE_COM);
+      genGasStation(g, b.x0 + 3, mid + 1, true);
+      for (const [px, py] of [[b.x0 + 5, b.y1 - 4], [b.x0 + 10, b.y1 - 4], [b.x0 + 15, b.y1 - 4]]) outdoor(g, 'pump', px, py, 0);
+      outdoor(g, 'dumpster', b.x0 + 16, mid + 2, 0);
+      genAutoRepair(g, b.x0 + 22, b.y1 - 11, true);
+      fill(w, b.x0 + 22, mid + 1, b.x1, b.y1 - 12, G.Parking, ZONE_COM);
+      g.vehicles.push({ x: b.x0 + 26, y: b.y1 - 14, heading: 0, crashed: false, key: rng.chance(0.3) ? 'glovebox' : 'none' });
+      g.vehicles.push({ x: b.x0 + 34, y: b.y1 - 14, heading: Math.PI, crashed: false, key: 'none' });
+      markZone(w, { x0: b.x0, y0: mid, x1: b.x1, y1: b.y1 }, ZONE_COM);
+    },
+    grocery: (b) => {
+      markZone(w, b, ZONE_COM);
+      fill(w, b.x0, b.y0 + 12, b.x1, b.y1 - 18, G.Parking);
+      genGrocery(g, b.x0, b.y1 - 17, true);
+      genPharmacy(g, b.x0 + 27, b.y1 - 13, true);
+      genOffice(g, b.x0 + 1, b.y0, false, 'First County Bank');
+      parkingLot(g, b.x0 + 17, b.y0, b.x1, b.y0 + 17, 'h');
+      outdoor(g, 'dumpster', b.x0 + 4, b.y1 - 19, 0);
+      outdoor(g, 'dumpster', b.x0 + 29, b.y1 - 15, 0);
+    },
+    hardware: (b) => {
+      markZone(w, b, ZONE_COM);
+      fill(w, b.x0, b.y0 + 12, b.x1, b.y1 - 16, G.Parking);
+      genHardware(g, b.x0, b.y1 - 15, true);
+      genDiner(g, b.x0 + 22, b.y1 - 11, true);
+      genBar(g, b.x0 + 2, b.y0, false);
+      parkingLot(g, b.x0 + 18, b.y0, b.x1, b.y0 + 17, 'h');
+      outdoor(g, 'dumpster', b.x0 + 3, b.y1 - 17, 0);
+      outdoor(g, 'dumpster', b.x0 + 30, b.y1 - 13, 0);
+    },
+    apartments: (b, j) => {
+      const mid = b.y0 + 18;
+      northHouses(b, j, 18);
+      genApartment(g, b.x0 + 1, b.y1 - 13, 23, 14, true, rng.pick(['Maple Court Apartments', 'Riverview Apartments', 'Oak Terrace']));
+      parkingLot(g, b.x0 + 25, mid + 1, b.x1, b.y1, 'v');
+      markZone(w, b, ZONE_RES);
+    },
+    motel: (b, j) => {
+      markZone(w, b, ZONE_COM);
+      parkingLot(g, b.x0, b.y0, b.x1, b.y0 + 6, 'h');
+      genMotel(g, b.x0 + 2, b.y0 + 7, false, 5);
+      southHouses(b, j, 19);
+    },
+    policeFire: (b) => {
+      markZone(w, b, ZONE_COM);
+      genPolice(g, b.x0, b.y0, false);
+      const fs = genFireStation(g, b.x0 + 23, b.y0, false);
+      g.vehicles.push({ ...fs.truck, type: 'firetruck', key: 'house', bld: fs.f.bb.b.id });
+      parkingLot(g, b.x0, b.y0 + 19, b.x1, b.y1, 'h', true);
+    },
+    clinicBank: (b, j) => {
+      markZone(w, b, ZONE_COM);
+      genClinic(g, b.x0, b.y0, false);
+      genOffice(g, b.x0 + 22, b.y0, false, 'Hollow Savings & Loan');
+      fill(w, b.x0, b.y0 + 17, b.x1, b.y0 + 18, G.Parking);
+      southHouses(b, j, 19);
+    },
+    gunSport: (b, j) => {
+      markZone(w, b, ZONE_COM);
+      genGunStore(g, b.x0 + 1, b.y0, false);
+      genSporting(g, b.x0 + 18, b.y0, false);
+      fill(w, b.x0, b.y0 + 15, b.x1, b.y0 + 18, G.Parking);
+      outdoor(g, 'dumpster', b.x0 + 15, b.y0 + 16, 0);
+      southHouses(b, j, 19);
+    },
+    hospital: (b) => {
+      markZone(w, b, ZONE_COM);
+      genHospital(g, b.x0 + 2, b.y0, false);
+      // an ambulance lane, then the lot
+      fill(w, b.x0, b.y0 + 24, b.x1, b.y0 + 27, G.Parking);
+      parkingLot(g, b.x0, b.y0 + 28, b.x1, b.y1, 'h');
+      g.vehicles.push({ x: b.x0 + 8, y: b.y0 + 25.8, heading: 0, type: 'ambulance', key: rng.chance(0.5) ? 'ignition' : 'house', bld: w.buildings.length - 1 });
+      if (rng.chance(0.6)) g.vehicles.push({ x: b.x0 + 30, y: b.y0 + 25.8, heading: Math.PI, type: 'ambulance', crashed: rng.chance(0.4), key: 'none' });
+      outdoor(g, 'dumpster', b.x1 - 3, b.y1 - 2, 0);
+    },
+    school: (b) => {
+      markZone(w, b, ZONE_COM);
+      genSchool(g, b.x0 + 3, b.y0, false);
+      // a fenced playing field behind it
+      const fy0 = b.y0 + 21;
+      fill(w, b.x0 + 2, fy0, b.x1 - 2, b.y1 - 1, G.Grass);
+      fence(w, b.x0 + 1, fy0 - 1, b.x1 - 1, fy0 - 1, S.FenceLow, [[b.x0 + 20, fy0 - 1], [b.x0 + 21, fy0 - 1]], 1);
+      fence(w, b.x0 + 1, fy0 - 1, b.x0 + 1, b.y1, S.FenceLow, [], 1);
+      fence(w, b.x1 - 1, fy0 - 1, b.x1 - 1, b.y1, S.FenceLow, [], 1);
+      for (const [x, y] of [[b.x0 + 5, fy0 + 2], [b.x0 + 9, fy0 + 2], [b.x1 - 6, fy0 + 2]] as [number, number][]) outdoor(g, 'bench', x, y, 0);
+      for (let k = 0; k < 4; k++) tree(g, rng.int(b.x0 + 3, b.x1 - 3), rng.int(b.y1 - 4, b.y1 - 1));
+    },
+    church: (b) => {
+      markZone(w, b, ZONE_COM);
+      genChurch(g, b.x0 + 2, b.y0, false);
+      genOffice(g, b.x0 + 22, b.y0, false, 'County Records Office');
+      parkingLot(g, b.x0 + 20, b.y0 + 13, b.x1, b.y0 + 21, 'h');
+      for (let k = 0; k < 8; k++) tree(g, rng.int(b.x0, b.x1), rng.int(b.y0 + 24, b.y1 - 2));
+    },
+  };
+
+  // Fixed: the park up north, industry down by the river.
   park(g, blockRect(2, 0));
-  res(3, 0, undefined, true);
-  res(3, 2);
-  res(0, 3, undefined, true);
-  res(1, 3, undefined, true);
+  industrialBlock(g, blockRect(2, 3), 'warehouse');
+  industrialBlock(g, blockRect(3, 3), 'factory');
+  const slots: [number, number][] = [];
+  for (let j = 0; j < 4; j++) for (let i = 0; i < VX.length - 1; i++) {
+    if (i === LAST - 1 && j === 0) continue; // the farm
+    if ((i === 2 && j === 0) || (i === 2 && j === 3) || (i === 3 && j === 3)) continue;
+    slots.push([i, j]);
+  }
+  const dealt = rng.shuffle(Object.keys(recipes));
+  const order = rng.shuffle(slots.slice());
+  for (let k = 0; k < order.length; k++) {
+    const [i, j] = order[k];
+    const b = blockRect(i, j);
+    if (k < dealt.length) recipes[dealt[k]](b, j);
+    else res(b, j, undefined, j === 0 || j === 3 || i === LAST - 1);
+  }
+}
 
-  // (0,1): gas station + auto repair on Main Street, houses on Hill Ave
-  {
-    const b = blockRect(0, 1);
-    const mid = b.y0 + 18;
-    resRow(g, b.x0, b.x1, b.y0, mid - 1, 'n', H_NAMES[1], houses, null);
-    fill(w, b.x0, mid + 1, b.x0 + 21, b.y1, G.Parking, ZONE_COM);
-    const gs = genGasStation(g, b.x0 + 3, mid + 1, true);
-    for (const [px, py] of [[b.x0 + 5, b.y1 - 4], [b.x0 + 10, b.y1 - 4], [b.x0 + 15, b.y1 - 4]]) outdoor(g, 'pump', px, py, 0);
-    outdoor(g, 'dumpster', b.x0 + 16, mid + 2, 0);
-    void gs;
-    genAutoRepair(g, b.x0 + 22, b.y1 - 11, true);
-    fill(w, b.x0 + 22, mid + 1, b.x1, b.y1 - 12, G.Parking, ZONE_COM);
-    g.vehicles.push({ x: b.x0 + 26, y: b.y1 - 14, heading: 0, crashed: false, key: rng.chance(0.3) ? 'glovebox' : 'none' });
-    g.vehicles.push({ x: b.x0 + 34, y: b.y1 - 14, heading: Math.PI, crashed: false, key: 'none' });
-    markZone(w, b, ZONE_COM);
-  }
-  // (1,1): grocery + pharmacy on Main, bank + parking on Hill Ave
-  {
-    const b = blockRect(1, 1);
-    markZone(w, b, ZONE_COM);
-    fill(w, b.x0, b.y0 + 12, b.x1, b.y1 - 18, G.Parking);
-    genGrocery(g, b.x0, b.y1 - 17, true);
-    genPharmacy(g, b.x0 + 27, b.y1 - 13, true);
-    genOffice(g, b.x0 + 1, b.y0, false, 'First County Bank');
-    parkingLot(g, b.x0 + 17, b.y0, b.x1, b.y0 + 17, 'h');
-    outdoor(g, 'dumpster', b.x0 + 4, b.y1 - 19, 0);
-    outdoor(g, 'dumpster', b.x0 + 29, b.y1 - 15, 0);
-  }
-  // (2,1): hardware + diner on Main, bar on Hill Ave
-  {
-    const b = blockRect(2, 1);
-    markZone(w, b, ZONE_COM);
-    fill(w, b.x0, b.y0 + 12, b.x1, b.y1 - 16, G.Parking);
-    genHardware(g, b.x0, b.y1 - 15, true);
-    genDiner(g, b.x0 + 22, b.y1 - 11, true);
-    genBar(g, b.x0 + 2, b.y0, false);
-    parkingLot(g, b.x0 + 18, b.y0, b.x1, b.y0 + 17, 'h');
-    outdoor(g, 'dumpster', b.x0 + 3, b.y1 - 17, 0);
-    outdoor(g, 'dumpster', b.x0 + 30, b.y1 - 13, 0);
-  }
-  // (3,1): apartments on Main, houses on Hill Ave
-  {
-    const b = blockRect(3, 1);
-    const mid = b.y0 + 18;
-    resRow(g, b.x0, b.x1, b.y0, mid - 1, 'n', H_NAMES[1], houses, null);
-    genApartment(g, b.x0 + 1, b.y1 - 13, 23, 14, true, 'Maple Court Apartments');
-    parkingLot(g, b.x0 + 25, mid + 1, b.x1, b.y1, 'v');
-    markZone(w, b, ZONE_RES);
-  }
-  // (0,2): motel facing Main Street, houses on Lake Ave
-  {
-    const b = blockRect(0, 2);
-    markZone(w, b, ZONE_COM);
-    parkingLot(g, b.x0, b.y0, b.x1, b.y0 + 6, 'h');
-    genMotel(g, b.x0 + 2, b.y0 + 7, false, 5);
-    const mid = b.y0 + 19;
-    resRow(g, b.x0, b.x1, mid + 1, b.y1, 's', H_NAMES[3], houses, null);
-  }
-  // (1,2): police + clinic
-  {
-    const b = blockRect(1, 2);
-    markZone(w, b, ZONE_COM);
-    genPolice(g, b.x0, b.y0, false);
-    genClinic(g, b.x0 + 22, b.y0, false);
-    parkingLot(g, b.x0, b.y0 + 19, b.x1, b.y1, 'h', true);
-  }
-  // (2,2): church + records office, houses on Lake Ave
-  {
-    const b = blockRect(2, 2);
-    markZone(w, b, ZONE_COM);
-    genChurch(g, b.x0 + 2, b.y0, false);
-    genOffice(g, b.x0 + 22, b.y0, false, 'County Records Office');
-    parkingLot(g, b.x0 + 20, b.y0 + 13, b.x1, b.y0 + 21, 'h');
-    for (let k = 0; k < 8; k++) tree(g, rng.int(b.x0, b.x1), rng.int(b.y0 + 24, b.y1 - 2));
-  }
-  // (2,3) warehouse and (3,3) factory with fenced yards
-  {
-    const b = blockRect(2, 3);
-    markZone(w, b, ZONE_IND);
-    fill(w, b.x0, b.y0, b.x1, b.y1, G.Gravel);
+function industrialBlock(g: Gen, b: BlockRect, kind: 'warehouse' | 'factory'): void {
+  const w = g.w;
+  const rng = g.rng;
+  markZone(w, b, ZONE_IND);
+  fill(w, b.x0, b.y0, b.x1, b.y1, G.Gravel);
+  if (kind === 'warehouse') {
     genWarehouse(g, b.x0 + 4, b.y0 + 3, false, 'Riverside Warehouse');
     industrialFence(g, b);
     g.vehicles.push({ x: b.x0 + 26.5, y: b.y1 - 8, heading: 0, type: 'truck', key: rng.chance(0.4) ? 'house' : 'none', bld: w.buildings.length - 1 });
     g.vehicles.push({ x: b.x0 + 12, y: b.y1 - 5, heading: Math.PI, type: 'van', key: 'none' });
     outdoor(g, 'dumpster', b.x0 + 2, b.y1 - 2, 0);
     for (let k = 0; k < 5; k++) outdoor(g, 'pallet', rng.int(b.x0 + 1, b.x1 - 1), rng.int(b.y1 - 4, b.y1 - 1), 0, 'warehouse|warehouse');
-  }
-  {
-    const b = blockRect(3, 3);
-    markZone(w, b, ZONE_IND);
-    fill(w, b.x0, b.y0, b.x1, b.y1, G.Gravel);
+  } else {
     genFactory(g, b.x0 + 5, b.y0 + 3, false);
     industrialFence(g, b);
     g.vehicles.push({ x: b.x0 + 20, y: b.y1 - 8, heading: Math.PI, type: 'truck', key: 'none' });
@@ -641,6 +686,7 @@ function countryside(g: Gen): void {
   clearArea(g, 138, 266, 160, 282);
   genCabin(g, 144, 270, false, 'Fishing Cabin');
   outdoor(g, 'campfire', 156, 276, 0);
+  militaryBase(g);
   // --- highway checkpoint (north)
   clearArea(g, 24, 22, 40, 44);
   for (let x = HIGHWAY.x0; x <= HIGHWAY.x1; x++) if (x < 16 || x > 18) outdoor(g, 'sandbags', x, 34, 0);
@@ -659,6 +705,37 @@ function countryside(g: Gen): void {
   g.vehicles.push({ x: 290, y: HY[2] + 1.6, heading: Math.PI, crashed: true, key: 'none' });
   g.vehicles.push({ x: 17.5, y: 120, heading: -Math.PI / 2, key: 'none' });
   g.vehicles.push({ x: 15.2, y: 260, heading: Math.PI / 2 + 0.3, crashed: true, key: 'glovebox' });
+}
+
+/** Camp Harlan: a fenced army outpost north of town. Rifles, armor and rations — and the soldiers who kept them. */
+function militaryBase(g: Gen): void {
+  const w = g.w;
+  const rng = g.rng;
+  const x0 = 150;
+  const y0 = 6;
+  const x1 = 214;
+  const y1 = 44;
+  clearArea(g, x0 - 2, y0 - 2, x1 + 2, y1 + 2);
+  fill(w, x0, y0, x1, y1, G.Gravel, ZONE_MIL);
+  const gate: [number, number][] = [];
+  for (let x = 180; x <= 184; x++) gate.push([x, y1]);
+  fence(w, x0, y0, x1, y0, S.FenceHigh, [], 1);
+  fence(w, x0, y1, x1, y1, S.FenceHigh, gate, 1);
+  fence(w, x0, y0, x0, y1, S.FenceHigh, [], 1);
+  fence(w, x1, y0, x1, y1, S.FenceHigh, [], 1);
+  // a gravel track down to North Road
+  roadV(w, 180, y1, HY[0] - 3, false, ZONE_MIL, 5, true);
+  // buildings face the parade ground in the middle
+  genBarracks(g, x0 + 5, y0 + 4, true, 'Camp Harlan Barracks A');
+  genMessHall(g, x0 + 25, y0 + 4, true);
+  genCommand(g, x0 + 44, y0 + 4, true);
+  genBarracks(g, x0 + 5, y0 + 24, false, 'Camp Harlan Barracks B');
+  for (let x = 172; x <= 192; x += 2) outdoor(g, 'sandbags', x, y1 - 3, 0);
+  for (const [x, y] of [[196, 30], [198, 30], [196, 32], [200, 33], [203, 30]]) outdoor(g, 'crate', x, y, 0, 'military|yard');
+  g.vehicles.push({ x: 188, y: 26, heading: 0, type: 'military', military: true, key: rng.chance(0.35) ? 'ignition' : 'none' });
+  g.vehicles.push({ x: 204, y: 38, heading: Math.PI, type: 'military', military: true, key: 'none', crashed: rng.chance(0.3) });
+  if (rng.chance(0.6)) g.vehicles.push({ x: 176, y: 36, heading: Math.PI / 2, type: 'pickup', key: 'none' });
+  w.landmarks.push({ name: 'Camp Harlan', x: (x0 + x1) / 2, y: y1 - 4, bld: w.buildings.length - 1 });
 }
 
 function clearArea(g: Gen, x0: number, y0: number, x1: number, y1: number): void {
@@ -718,6 +795,8 @@ function forest(g: Gen): void {
 function streetVehicles(g: Gen): void {
   const rng = g.rng;
   const w = g.w;
+  const all = g.vehicles;
+  const start = all.length;
   // parked along curbs of town roads
   for (let j = 0; j < HY.length; j++) {
     const y = HY[j];
@@ -746,7 +825,12 @@ function streetVehicles(g: Gen): void {
       }
     }
   }
-  void w;
+  // the grid has a gap (no road north of the farm): keep only cars that ended up on a road
+  const onRoad = (v: VehicleSpawn): boolean => {
+    const i = Math.floor(v.y) * w.w + Math.floor(v.x);
+    return w.ground[i] === G.Road && w.bld[i] < 0;
+  };
+  g.vehicles = all.slice(0, start).concat(all.slice(start).filter(onRoad));
 }
 
 function lamps(g: Gen): void {

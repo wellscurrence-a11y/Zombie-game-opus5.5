@@ -33,6 +33,9 @@ export const FLOOR_FOR: Record<RoomType, G> = {
   cells: G.FloorConcrete, waiting: G.FloorLino, exam: G.FloorLino, clinicPharmacy: G.FloorLino, warehouse: G.FloorConcrete,
   factory: G.FloorConcrete, barn: G.FloorConcrete, motelRoom: G.FloorCarpet, shed: G.FloorWood, church: G.FloorWood,
   breakroom: G.FloorLino, cabin: G.FloorWood, checkpoint: G.Dirt,
+  gunshop: G.FloorLino, fireBay: G.FloorConcrete, gearRoom: G.FloorConcrete, dorm: G.FloorLino, classroom: G.FloorLino,
+  cafeteria: G.FloorTile, nurse: G.FloorLino, ward: G.FloorLino, surgery: G.FloorTile, hospitalPharmacy: G.FloorLino,
+  reception: G.FloorLino, sportshop: G.FloorLino, barracks: G.FloorConcrete, messHall: G.FloorConcrete, command: G.FloorWood,
 };
 
 const WALL_COLORS = [0xb8ab94, 0x9aa3a8, 0xc9b99a, 0x8f9a85, 0xa89684, 0xbfb8a8, 0x8c8577, 0xa6a08e, 0x7f8b93, 0xc2a78a];
@@ -509,6 +512,76 @@ export function furnishRoom(g: Gen, b: Building, room: Room): void {
       wall('bed');
       wall('wardrobe');
       furnishCenter(g, room, 'table', lk);
+      break;
+    case 'dorm':
+    case 'barracks':
+      for (let k = 0; k < Math.max(2, Math.floor(area / 10)); k++) wall('bunk');
+      wall('locker', n(2, 4));
+      break;
+    case 'gearRoom':
+      wall('locker', n(3, 6));
+      wall('shelf', n(1, 2));
+      furnishCenter(g, room, 'bench', lk, 0);
+      break;
+    case 'classroom': {
+      // rows of desks facing the teacher's desk and board
+      for (let y = room.y0 + 2; y <= room.y1 - 1; y += 2) {
+        for (let x = room.x0 + 1; x <= room.x1 - 1; x += 2) {
+          if (g.w.furn[y * g.w.w + x] < 0 && !nearDoor(g.w, x, y)) furnishAt(g, room, 'desk', x, y, 0, lk);
+        }
+      }
+      wall('bookshelf');
+      break;
+    }
+    case 'cafeteria': {
+      wall('fridge');
+      wall('freezer');
+      wall('counter', n(2, 3));
+      wall('stove');
+      for (let y = room.y0 + 2; y <= room.y1 - 2; y += 3) {
+        for (let x = room.x0 + 2; x <= room.x1 - 2; x += 3) if (!nearDoor(g.w, x, y)) furnishAt(g, room, 'table', x, y, 0, lk);
+      }
+      break;
+    }
+    case 'nurse':
+      wall('medbed');
+      wall('medcab', n(1, 2));
+      wall('desk');
+      break;
+    case 'ward':
+      for (let k = 0; k < Math.max(2, Math.floor(area / 9)); k++) wall('medbed');
+      wall('medcab', n(1, 2));
+      wall('nightstand', n(1, 3));
+      break;
+    case 'surgery':
+      furnishCenter(g, room, 'medbed', lk, 0);
+      wall('medcab', n(2, 3));
+      wall('counter', n(1, 2));
+      break;
+    case 'hospitalPharmacy':
+      wall('medcab', n(3, 5));
+      wall('shelf', n(1, 3));
+      break;
+    case 'reception':
+      wall('cashbox');
+      wall('chair', n(3, 6));
+      wall('filing');
+      if (rng.chance(0.6)) wall('trash');
+      break;
+    case 'messHall': {
+      wall('fridge');
+      wall('freezer');
+      wall('counter', n(2, 3));
+      wall('stove');
+      for (let y = room.y0 + 2; y <= room.y1 - 2; y += 3) {
+        for (let x = room.x0 + 2; x <= room.x1 - 2; x += 3) if (!nearDoor(g.w, x, y)) furnishAt(g, room, 'table', x, y, 0, lk);
+      }
+      break;
+    }
+    case 'command':
+      wall('desk', n(1, 2));
+      wall('filing', n(1, 2));
+      wall('locker');
       break;
     case 'church':
       for (let y = room.y0 + 2; y <= room.y1 - 3; y += 2) {

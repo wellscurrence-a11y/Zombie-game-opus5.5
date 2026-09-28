@@ -61,6 +61,7 @@ export const ZONE_FARM = 4;
 export const ZONE_FOREST = 5;
 export const ZONE_HIGHWAY = 6;
 export const ZONE_PARK = 7;
+export const ZONE_MIL = 8;
 
 export type DoorKind = 'wood' | 'metal' | 'glass' | 'garage' | 'gate' | 'cell' | 'built';
 
@@ -110,7 +111,7 @@ export type ContainerKind =
   | 'fridge' | 'freezer' | 'counter' | 'wardrobe' | 'dresser' | 'nightstand' | 'medicine' | 'shelf'
   | 'bookshelf' | 'desk' | 'filing' | 'crate' | 'locker' | 'toolchest' | 'workbench' | 'register'
   | 'cooler' | 'trash' | 'dumpster' | 'trunk' | 'glovebox' | 'oven' | 'washer' | 'mailbox' | 'rack'
-  | 'barcounter' | 'medcab' | 'hay' | 'corpse' | 'floor' | 'woodcrate' | 'barrel' | 'stove';
+  | 'barcounter' | 'medcab' | 'hay' | 'corpse' | 'floor' | 'woodcrate' | 'barrel' | 'stove' | 'guncase' | 'gunrack';
 
 export interface Container {
   id: number;
@@ -133,7 +134,7 @@ export type FurnKind =
   | 'toolchest' | 'crate' | 'pallet' | 'locker' | 'medbed' | 'medcab' | 'pump' | 'dumpster' | 'trash'
   | 'bench' | 'lamp' | 'mailbox' | 'hydrant' | 'hay' | 'washer' | 'barcounter' | 'booth' | 'pew'
   | 'generator' | 'rainbarrel' | 'campfire' | 'sleepbag' | 'woodcrate' | 'bbq' | 'well' | 'machine'
-  | 'bunk' | 'sandbags' | 'alarmtrap' | 'lumber' | 'tractor' | 'silo' | 'cashbox' | 'lamptable';
+  | 'bunk' | 'sandbags' | 'alarmtrap' | 'lumber' | 'tractor' | 'silo' | 'cashbox' | 'lamptable' | 'guncase' | 'gunrack';
 
 export interface Furniture {
   id: number;
@@ -160,13 +161,15 @@ export interface Furniture {
 export type BuildingKind =
   | 'house' | 'apartment' | 'grocery' | 'pharmacy' | 'hardware' | 'diner' | 'bar' | 'police' | 'clinic'
   | 'gas' | 'warehouse' | 'factory' | 'farmhouse' | 'barn' | 'cabin' | 'motel' | 'shed' | 'church'
-  | 'office' | 'garage' | 'checkpoint';
+  | 'office' | 'garage' | 'checkpoint' | 'gunstore' | 'hospital' | 'firestation' | 'school' | 'sporting' | 'military';
 
 export type RoomType =
   | 'living' | 'kitchen' | 'bedroom' | 'bathroom' | 'hallway' | 'garage' | 'office' | 'storage' | 'laundry'
   | 'grocery' | 'pharmacy' | 'hardware' | 'gasstore' | 'diner' | 'dinerKitchen' | 'bar' | 'policeLobby'
   | 'policeOffice' | 'lockers' | 'armory' | 'cells' | 'waiting' | 'exam' | 'clinicPharmacy' | 'warehouse'
-  | 'factory' | 'barn' | 'motelRoom' | 'shed' | 'church' | 'breakroom' | 'cabin' | 'checkpoint';
+  | 'factory' | 'barn' | 'motelRoom' | 'shed' | 'church' | 'breakroom' | 'cabin' | 'checkpoint'
+  | 'gunshop' | 'fireBay' | 'gearRoom' | 'dorm' | 'classroom' | 'cafeteria' | 'nurse' | 'ward' | 'surgery'
+  | 'hospitalPharmacy' | 'reception' | 'sportshop' | 'barracks' | 'messHall' | 'command';
 
 export interface Room {
   id: number;
@@ -210,6 +213,8 @@ export interface Building {
   doors: number[];
   windows: number[];
   visited: boolean;
+  /** Seen by the survivor (it shows up on the map). */
+  seen?: boolean;
   /** Generator furniture id powering this building (-1 none). */
   generator: number;
   address: string;

@@ -248,6 +248,19 @@ export function furnitureGeometry(kind: FurnKind): THREE.BufferGeometry {
       b.box(0, 1.05, 0.31, 0.9, 1.7, 0.02, 0x9fc4cf);
       for (const y of [0.4, 0.9, 1.4]) products(b, -0.43, 0.43, y, 0.1, 0.35, (y * 50) | 0);
       break;
+    case 'guncase':
+      b.box(0, 0.35, 0, 1.0, 0.7, 0.66, 0x3c3128);
+      b.box(0, 0.86, 0, 1.0, 0.3, 0.66, 0x9fbcc4);
+      b.box(-0.2, 0.78, 0, 0.4, 0.06, 0.12, 0x1d1d1d);
+      b.box(0.25, 0.78, 0.1, 0.25, 0.06, 0.1, 0x1d1d1d);
+      break;
+    case 'gunrack':
+      b.box(0, 1.0, -0.3, 1.0, 2.0, 0.1, 0x5a4636);
+      for (const x of [-0.36, -0.12, 0.12, 0.36]) {
+        b.box(x, 1.05, -0.2, 0.06, 1.3, 0.06, 0x222222);
+        b.box(x, 0.5, -0.2, 0.1, 0.35, 0.08, 0x5c3f28);
+      }
+      break;
     case 'checkout':
     case 'cashbox':
       b.box(0, 0.5, 0, 1.0, 1.0, 0.7, kind === 'checkout' ? 0x8f8a80 : 0x7a6a58);
