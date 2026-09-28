@@ -1,6 +1,6 @@
 import type { Game } from '../game';
 import { clockString, dateString, dayNumber, formatDuration } from '../core/time';
-import { conditions } from '../sim/conditions';
+import { conditions, type Condition } from '../sim/conditions';
 import { def, itemName } from '../sim/items';
 import { NOTES } from '../sim/log';
 import { capacity, carriedWeight, heldItem } from '../sim/stats';
@@ -31,6 +31,9 @@ export class Hud {
   speedo = document.createElement('div');
   modehint = document.createElement('div');
   stompHint = document.createElement('div');
+  condTip = document.createElement('div');
+  private condById = new Map<string, Condition>();
+  private hoverCond: string | null = null;
   vitals = document.createElement('div');
   conds = document.createElement('div');
   private g: Game;
@@ -60,6 +63,20 @@ export class Hud {
     this.toast.className = 'toast';
     this.speedo.className = 'speedo';
     this.modehint.className = 'modehint';
+    this.condTip.className = 'condtip';
+    this.condTip.style.display = 'none';
+    root.appendChild(this.condTip);
+    // hover a condition badge to see exactly what it's doing to you
+    this.conds.addEventListener('mouseover', (e) => {
+      const el = (e.target as HTMLElement).closest('.cond') as HTMLElement | null;
+      if (!el?.dataset.id) return;
+      this.hoverCond = el.dataset.id;
+      this.showCondTip();
+    });
+    this.conds.addEventListener('mouseleave', () => {
+      this.hoverCond = null;
+      this.condTip.style.display = 'none';
+    });
     this.stompHint.className = 'stomphint';
     this.stompHint.innerHTML = 'Stomp! <span class="k">Space</span> or <span class="k">click</span>';
     this.stompHint.style.display = 'none';
@@ -174,9 +191,11 @@ export class Hud {
     // --- slow: text panels
     setHTML(this.vitals, vitalsHtml(g));
     const conds = conditions(s, rt);
+    this.condById = new Map(conds.map((c) => [c.id, c]));
     setHTML(this.conds, conds
-      .map((c) => `<div class="cond ${c.tone}" title="${esc(c.tip)}"><span>${esc(c.label)}</span>${c.level > 1 ? `<span class="dots">${'●'.repeat(Math.min(4, c.level))}</span>` : ''}</div>`)
+      .map((c) => `<div class="cond ${c.tone}" data-id="${c.id}"><span>${esc(c.label)}</span>${c.level > 1 ? `<span class="dots">${'●'.repeat(Math.min(4, c.level))}</span>` : ''}</div>`)
       .join(''));
+    if (this.hoverCond) this.showCondTip();
     const watch = hasWatch(g);
     const wx = s.weather;
     const feel = wx.temp < 0 ? 'Freezing' : wx.temp < 7 ? 'Cold' : wx.temp < 13 ? 'Cool' : wx.temp < 22 ? 'Mild' : wx.temp < 28 ? 'Warm' : 'Hot';
@@ -214,6 +233,23 @@ export class Hud {
     const wt = carriedWeight(p);
     const cap = capacity(p);
     setHTML(this.bc, `<div class="hotbar" style="${p.inVehicle >= 0 ? 'visibility:hidden' : ''}">${slots.join('')}</div><div class="bars"><span class="${wt > cap ? 'warn' : 'dim'}">${wt.toFixed(1)} / ${cap.toFixed(0)} kg</span><span class="dim">${p.stance === 'crouch' ? 'Crouched' : p.running ? 'Running' : 'Walking'}${held ? ` · ${esc(itemName(held))}` : ' · Bare hands'}</span></div>`);
+  }
+
+  /** The effect panel beside a hovered condition badge (numbers refresh while you watch). */
+  private showCondTip(): void {
+    const c = this.hoverCond ? this.condById.get(this.hoverCond) : undefined;
+    const el = this.hoverCond ? (this.conds.querySelector(`.cond[data-id="${this.hoverCond}"]`) as HTMLElement | null) : null;
+    if (!c || !el) {
+      this.hoverCond = null;
+      this.condTip.style.display = 'none';
+      return;
+    }
+    const strength = c.effects.some((x) => x.includes('Physical strength'));
+    setHTML(this.condTip, `<div class="ct-h ${c.tone}">${esc(c.label)}</div><ul>${c.effects.map((x) => `<li>${esc(x)}</li>`).join('')}</ul><div class="ct-do">${esc(c.tip)}</div>${strength ? '<div class="ct-note">Physical strength sets how hard you hit and shove, and part of how fast you move.</div>' : ''}`);
+    const r = el.getBoundingClientRect();
+    this.condTip.style.display = 'block';
+    this.condTip.style.left = `${Math.round(r.right + 8)}px`;
+    this.condTip.style.top = `${Math.round(Math.min(r.top, window.innerHeight - this.condTip.offsetHeight - 8))}px`;
   }
 
   private updateTooltip(): void {

@@ -11,6 +11,7 @@ import { newZombie } from '../src/sim/population';
 import { emitNoise } from '../src/sim/noise';
 import { spotRange } from '../src/sim/zombies';
 import { addInjury } from '../src/sim/body';
+import { conditions } from '../src/sim/conditions';
 import { ensureLoot } from '../src/sim/inventory';
 import { def } from '../src/sim/items';
 import { crash } from '../src/sim/vehicles';
@@ -186,6 +187,27 @@ describe('simulation', () => {
     }
     expect(food).toBeGreaterThan(40);
     expect(meds).toBeGreaterThan(10);
+  });
+
+  it('explains what every status condition does, with numbers', () => {
+    const { s, rt } = harness(111);
+    const p = s.player;
+    const n = p.needs;
+    Object.assign(n, { hunger: 0.9, thirst: 0.96, fatigue: 0.95, endurance: 0.1, panic: 0.9, stress: 0.9, temp: 34.6, wet: 0.8, sick: 0.8, cold: 0.7, drunk: 0.5, co: 0.5, craving: 0.8, painkiller: 2, calm: 1 });
+    addInjury(s, rt, 'lLeg', 'deep', 0.8, 'test');
+    addInjury(s, rt, 'rHand', 'cut', 0.6, 'test');
+    p.body.blood = 0.6;
+    p.body.feverLevel = 0.5;
+    p.stance = 'crouch';
+    const list = conditions(s, rt);
+    expect(list.length).toBeGreaterThan(15);
+    for (const c of list) {
+      expect(c.effects.length, c.id).toBeGreaterThan(0);
+      for (const e of c.effects) expect(e, c.id).not.toMatch(/NaN|undefined|Infinity/);
+    }
+    const panic = list.find((c) => c.id === 'panic')!;
+    expect(panic.effects.join(' ')).toMatch(/Field of view narrowed by \d+°/);
+    expect(list.find((c) => c.id === 'thirst')!.effects.join(' ')).toMatch(/3\.5 health per game hour/);
   });
 
   it('lets an idle survivor in a locked home live through the first day', () => {
