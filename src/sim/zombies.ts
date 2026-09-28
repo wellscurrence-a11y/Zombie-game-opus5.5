@@ -9,9 +9,9 @@ import { isObstacle, PathFinder, zombieCost } from './path';
 import type { NoiseEvent, Runtime } from './runtime';
 import { zombiesNear } from './runtime';
 import type { GameState, Zombie } from './types';
-import { collides, lineOfSight, moveCircle, soundCost, Shape, tileShape } from './worldq';
+import { collides, lineOfSight, moveCircle, reachClear, soundCost, Shape, tileShape } from './worldq';
 import { damageObstacle } from './structures';
-import { zombieAttack, zombieAttackVehicle } from './combat';
+import { windowFacing, zombieAttack, zombieAttackVehicle } from './combat';
 import { lvl } from './skills';
 import { vehClosest } from './vehicleSpecs';
 import { note } from './log';
@@ -51,7 +51,11 @@ export function spotRange(s: GameState, rt: Runtime, z: Zombie, amb: number): nu
     const ti = py * w.w + px;
     if (p.stance === 'crouch' && (w.struct[ti] === S.Bush || w.ground[ti] === G.TallGrass)) range *= 0.45;
     if (p.sleeping) range *= 0.5;
-  } else range *= 1.5;
+  } else {
+    // a moving car draws the eye; someone sitting still behind glass is easier to miss
+    const v = s.vehicles[p.inVehicle];
+    range *= Math.abs(v.speed) > 0.5 || v.engineOn ? 1.4 : 0.9;
+  }
   return range;
 }
 
@@ -107,7 +111,8 @@ function tickZombie(s: GameState, rt: Runtime, pf: PathFinder, z: Zombie, dt: nu
   z.moanT -= dt;
   z.sinceSeen += dt;
   z.anim += dt * (Math.hypot(z.vx, z.vy) * 4.2 + 0.3);
-  if (z.attackT > 0 && z.state !== 'attack') z.attackT = 0;
+  // attackT doubles as the pounding timer when the survivor is shut in a car
+  if (z.attackT > 0 && z.state !== 'attack' && !(z.state === 'chase' && pt.inVehicle)) z.attackT = 0;
 
   // ---- incapacitated states
   if (z.state === 'down') {
@@ -218,22 +223,24 @@ function tickZombie(s: GameState, rt: Runtime, pf: PathFinder, z: Zombie, dt: nu
       z.tx = z.lastSeenX;
       z.ty = z.lastSeenY;
       z.interest -= dt;
-      if (pt.inVehicle) {
-        const v = s.vehicles[p.inVehicle];
+      // (the survivor may have been dragged out earlier this tick)
+      const v = pt.inVehicle && p.inVehicle >= 0 ? s.vehicles[p.inVehicle] : null;
+      if (v) {
         const c = vehClosest(v, z.x, z.y);
         const dv = Math.hypot(c.x - z.x, c.y - z.y);
         if (dv < 0.55 && Math.abs(v.speed) < 3) {
           z.vx = z.vy = 0;
           z.facing = turnToward(z.facing, Math.atan2(v.y - z.y, v.x - z.x), dt * 6);
           z.attackT += dt;
-          if (z.attackT > 1.5) {
+          // pounding on glass is slow; reaching through a broken window is not
+          if (z.attackT > (v.windows[windowFacing(v, z.x, z.y)] >= 2 ? 1.0 : 1.5)) {
             z.attackT = 0;
             zombieAttackVehicle(s, rt, z, v);
           }
           break;
         }
       }
-      if (seeNow && d < 0.95 && !pt.inVehicle && p.climbT <= 0) {
+      if (seeNow && d < 0.95 && !pt.inVehicle && p.climbT <= 0 && reachClear(s.world, z.x, z.y, pt.x, pt.y)) {
         const off = Math.abs(angleDiff(z.facing, Math.atan2(pt.y - z.y, pt.x - z.x)));
         z.facing = turnToward(z.facing, Math.atan2(pt.y - z.y, pt.x - z.x), dt * 8);
         if (off < 1.0) {
@@ -257,7 +264,8 @@ function tickZombie(s: GameState, rt: Runtime, pf: PathFinder, z: Zombie, dt: nu
       z.facing = turnToward(z.facing, Math.atan2(pt.y - z.y, pt.x - z.x), dt * 4);
       if (z.attackT >= 1) {
         z.attackT = 0;
-        if (d < 1.15 && !pt.inVehicle && !p.dead) zombieAttack(s, rt, z);
+        // the swing lands only if you're still in reach: stepping back or ducking behind a door works
+        if (d < 1.15 && !pt.inVehicle && !p.dead && reachClear(s.world, z.x, z.y, pt.x, pt.y)) zombieAttack(s, rt, z);
         setState(z, 'chase', 0);
         z.moanT = Math.min(z.moanT, 1);
       }

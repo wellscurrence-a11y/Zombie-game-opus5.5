@@ -8,7 +8,7 @@ import { blankControls, simStep, type SimCtx } from '../src/sim/step';
 import { newZombie } from '../src/sim/population';
 import { makeItem } from '../src/sim/items';
 import { swingTime } from '../src/sim/combat';
-import { S } from '../src/world/world';
+import { S, WIN_CLOSED } from '../src/world/world';
 import type { GameState } from '../src/sim/types';
 
 function harness(seed = 900) {
@@ -67,6 +67,48 @@ describe('combat', () => {
     expect(z.hp).toBeLessThanOrEqual(0);
     expect(swings).toBeLessThan(10);
     expect(s.corpses.length).toBe(1);
+  });
+
+  it('cannot hit or be hit through a closed window', () => {
+    const { s, rt, c, run } = harness(903);
+    const p = s.player;
+    const w = s.world;
+    s.vehicles = [];
+    s.zombies = [];
+    const free = (x: number, y: number): boolean => w.struct[y * w.w + x] === S.None && w.furn[y * w.w + x] < 0;
+    const win = w.windows.find((wi) => wi.state === WIN_CLOSED && wi.planks === 0 && (wi.vertical ? free(wi.x - 1, wi.y) && free(wi.x + 1, wi.y) : free(wi.x, wi.y - 1) && free(wi.x, wi.y + 1)))!;
+    expect(win).toBeTruthy();
+    // survivor right against the glass on one side, a zombie right against it on the other
+    const [dx, dy] = win.vertical ? [1, 0] : [0, 1];
+    p.x = win.x + 0.5 - dx * 0.8;
+    p.y = win.y + 0.5 - dy * 0.8;
+    const z = newZombie(s, rt.rng, win.x + 0.5 + dx * 0.8, win.y + 0.5 + dy * 0.8);
+    s.zombies.push(z);
+    const bat = makeItem(s, 'bat');
+    p.inventory.push(bat);
+    p.primary = bat.uid;
+    const hp0 = z.hp;
+    // one swing: it smashes the glass, not the zombie behind it
+    let k = 0;
+    run(0.8, 0.05, () => {
+      p.facing = Math.atan2(z.y - p.y, z.x - p.x);
+      c.controls.attack = k++ === 0;
+    });
+    expect(z.hp).toBe(hp0);
+    expect(win.state).not.toBe(WIN_CLOSED);
+    // boarded up again, the zombie can pound on it but can't reach through
+    win.planks = 3;
+    win.barricadeHp = 999;
+    z.x = win.x + 0.5 + dx * 0.8;
+    z.y = win.y + 0.5 + dy * 0.8;
+    z.state = 'chase';
+    z.lastSeenX = p.x;
+    z.lastSeenY = p.y;
+    z.interest = 100;
+    run(10, 0.05, () => {
+      p.facing = Math.atan2(z.y - p.y, z.x - p.x);
+    });
+    expect(p.body.injuries.filter((i) => i.cause.includes('zombie')).length).toBe(0);
   });
 
   it('swings slower when exhausted', () => {

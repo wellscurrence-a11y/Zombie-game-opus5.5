@@ -32,8 +32,12 @@ SOAK=1 npm test    # also run a slow multi-day soak test
 The build is a static site (relative paths), so `dist/` can be hosted anywhere, including GitHub Pages.
 A WebGL2-capable browser is required.
 
+**Graphics.** The game picks a quality tier for the device on first launch (Chromebooks and older
+integrated GPUs get *Low*: no shadows or antialiasing, simpler ground shading and a reduced render
+resolution). Resolution also drops automatically when the frame rate does. Change it under Settings.
+
 Developer shortcuts: `?quick=1&seed=123` starts straight into a world; `&hour=22` sets the clock;
-`&lowgfx=1` turns off shadows and lowers resolution.
+`&gfx=low|medium|high` forces a graphics tier; `&lowgfx=1` halves the resolution.
 
 ## Controls
 
@@ -45,7 +49,7 @@ Developer shortcuts: `?quick=1&seed=123` starts straight into a world; `&hour=22
 | Left click | Attack. With a gun: hold to aim, release to fire |
 | Space | Shove (breaks grabs, knocks zombies down — then stomp them) |
 | Right click | Context options for doors, windows, furniture, cars, bodies, trees, the ground |
-| E | Open/close doors, climb through windows, vault fences; get out of a car |
+| E | Open/close doors, climb through windows, vault fences; get out of a car (brakes first) |
 | F | Flashlight (headlights when driving) |
 | R | Reload (start/stop the engine when driving) |
 | G | Horn (when driving — very loud) |
@@ -70,7 +74,9 @@ only walk in from the edge of the map, far away, as a migrating group — with a
 hear them. Every crowd at your door came for a reason: a gunshot, an alarm, an engine, a helicopter,
 hammering, a broken window, a door slammed while running.
 
-**Combat** is about reach, swing time, weight, stamina, knockback and weapon wear. Exhaustion slows
+**Combat** is about reach, swing time, weight, stamina, knockback and weapon wear. Nobody hits
+through walls, doors or intact windows; a zombie that hasn't noticed you, struck from behind, often
+goes down in one blow. Exhaustion slows
 swings and weakens shoves; being grabbed lets others bite; hits from behind land more often; panic
 ruins accuracy and narrows your field of view. Firearms are powerful and heard for hundreds of meters.
 
@@ -81,7 +87,10 @@ cripple legs or two-handed weapons; bites carry a fever with no cure. Treatment 
 interrupted by attacks.
 
 **Needs.** Hunger, thirst, sleep, stamina, body temperature, wetness, stress, panic, pain, food
-poisoning, colds (coughing is noisy), drunkenness and carbon monoxide.
+poisoning, colds (coughing is noisy), drunkenness and carbon monoxide. Health, food, water, rest,
+stamina and body temperature are always shown top-left. You get hungry about 13 hours after a meal and
+thirsty after about 7; dehydration kills in about two days, starvation in about four. Stay awake too
+long and you collapse where you stand, or nod off at the wheel.
 
 **Weight.** Everything weighs something. Bags help but don't make weight meaningless. Heavy loads slow
 you down, burn stamina, and make climbing fences and windows dangerous.
@@ -92,8 +101,10 @@ be careful (quiet, slow) or quick (noisy, and sometimes you knock something over
 alarm panels by the door while the power is on.
 
 **Vehicles** need keys (or hotwiring know-how), fuel, a working battery, engine and tires. Engines are
-loud, damaged engines louder. Crashes injure — badly at speed. Zombies surround stopped cars and break
-the windows. Fuel can be siphoned or pumped while the power lasts.
+loud, damaged engines louder. Crashes injure — badly at speed. A car is not a shelter: the dead
+surround a stopped car, break the glass, reach in, and with enough hands drag you out. It keeps the rain
+off but not the cold unless the engine (and its noise) runs. Fuel can be siphoned or pumped while the
+power lasts.
 
 **Base building.** Lock doors, barricade doors and windows, hang sheets over windows, move furniture,
 build wooden/log/metal walls and gates, crates, rain collectors, tin-can alarm lines, sleeping bags,

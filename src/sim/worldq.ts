@@ -192,6 +192,44 @@ export function isOutdoorTile(w: World, x: number, y: number): boolean {
   return w.room[y * w.w + x] < 0;
 }
 
+/**
+ * Can an arm (or a bat) reach from one point to the other? Walls, closed doors, closed or boarded windows and
+ * tall fences are in the way; you can reach over a low fence or through a broken, unboarded window.
+ */
+export function reachClear(w: World, x0: number, y0: number, x1: number, y1: number): boolean {
+  const d = Math.hypot(x1 - x0, y1 - y0);
+  const n = Math.max(1, Math.ceil(d / 0.12));
+  let last = -1;
+  for (let k = 1; k < n; k++) {
+    const t = k / n;
+    const tx = Math.floor(x0 + (x1 - x0) * t);
+    const ty = Math.floor(y0 + (y1 - y0) * t);
+    if (tx < 0 || ty < 0 || tx >= w.w || ty >= w.h) return false;
+    const i = ty * w.w + tx;
+    if (i === last) continue;
+    last = i;
+    switch (w.struct[i]) {
+      case S.Wall:
+      case S.BuiltWall:
+      case S.FenceHigh:
+        return false;
+      case S.Door: {
+        const dr = w.doors[w.structRef[i]];
+        if (!dr.open && !dr.broken) return false;
+        break;
+      }
+      case S.Window: {
+        const win = w.windows[w.structRef[i]];
+        if (win.planks > 0 || !(win.state === WIN_OPEN || win.state === WIN_BROKEN || win.state === WIN_CLEARED)) return false;
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  return true;
+}
+
 /** Is there an unobstructed line of sight between two points (tile-level)? */
 export function lineOfSight(w: World, x0: number, y0: number, x1: number, y1: number): boolean {
   let ax = Math.floor(x0);

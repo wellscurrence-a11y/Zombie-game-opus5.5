@@ -13,10 +13,15 @@ import { handFactor, heldItem, vigor } from './stats';
 import { breakWindow, damageObstacle } from './structures';
 import { hasTrait } from './traits';
 import type { GameState, Vehicle, Zombie } from './types';
-import { blocksSight } from './worldq';
+import { blocksSight, collides, reachClear } from './worldq';
+import { vehClosest } from './vehicleSpecs';
 import { zombieDies } from './zombies';
 
 const tmp: Zombie[] = [];
+
+function collidesAt(s: GameState, x: number, y: number, ignoreVehicle: number): boolean {
+  return collides(s, x, y, 0.27, { ignoreVehicle });
+}
 
 // ------------------------------------------------------------------ zombies hurting the survivor
 
@@ -45,7 +50,7 @@ function pickPart(rt: Runtime, behind: boolean, grabbed: boolean, crawler: boole
   ]);
 }
 
-export function zombieAttack(s: GameState, rt: Runtime, z: Zombie, throughWindow = false): void {
+export function zombieAttack(s: GameState, rt: Runtime, z: Zombie, throughWindow = false, reach = 1): void {
   const p = s.player;
   const n = p.needs;
   const rng = rt.rng;
@@ -62,7 +67,7 @@ export function zombieAttack(s: GameState, rt: Runtime, z: Zombie, throughWindow
   if (rt.action) hit += 0.15;
   if (p.attackT > 0) hit += 0.05;
   if (z.crawler) hit -= 0.12;
-  if (throughWindow) hit *= 0.55;
+  if (throughWindow) hit *= 0.6 * reach;
   if (!rng.chance(clamp(hit, 0.08, 0.96))) {
     if (rng.chance(0.3)) log(s, 'Fingers claw at you and slip away.', 'warn');
     n.panic = clamp(n.panic + 0.05, 0, 1);
@@ -73,8 +78,18 @@ export function zombieAttack(s: GameState, rt: Runtime, z: Zombie, throughWindow
     rt.action.onCancel?.();
     rt.action = null;
   }
+  if (throughWindow) {
+    // two sets of hands on you and the car standing still: out you come
+    const v = s.vehicles[p.inVehicle];
+    if (v && p.grabbedBy.includes(z.id) && p.grabbedBy.length >= 2 && Math.abs(v.speed) < 1 && rng.chance(0.25 + (1 - n.endurance) * 0.2)) {
+      dragOutOfCar(s, rt, z, v);
+      return;
+    }
+  }
   let outcome: 'grab' | 'scratch' | 'cut' | 'bite';
-  if (grabbed) {
+  if (grabbed && throughWindow && !p.grabbedBy.includes(z.id) && rng.chance(0.4)) {
+    outcome = 'grab';
+  } else if (grabbed) {
     outcome = rng.weighted([['bite', p.grabbedBy.includes(z.id) ? 0.55 : 0.45], ['cut', 0.25], ['scratch', 0.2]] as const);
   } else {
     outcome = rng.weighted([
@@ -84,7 +99,15 @@ export function zombieAttack(s: GameState, rt: Runtime, z: Zombie, throughWindow
       ['bite', 0.1 + (behind ? 0.08 : 0)],
     ] as const);
   }
-  if (throughWindow && outcome === 'grab') outcome = 'scratch';
+  if (throughWindow && outcome === 'grab') {
+    if (!p.grabbedBy.includes(z.id)) p.grabbedBy.push(z.id);
+    z.grabbing = true;
+    n.panic = clamp(n.panic + 0.3, 0, 1);
+    log(s, 'A hand reaches through the broken window and grabs you! Drive off to break free.', 'danger');
+    chronicle(s, 'Grabbed through a broken car window.', 3);
+    note(s, 'carSurrounded');
+    return;
+  }
   if (outcome === 'grab' && p.inVehicle < 0) {
     p.grabbedBy.push(z.id);
     z.grabbing = true;
@@ -139,28 +162,60 @@ export function zombieAttack(s: GameState, rt: Runtime, z: Zombie, throughWindow
   if (p.downT > 0 && crowd >= 3 && rng.chance(0.3)) killPlayer(s, rt, 'Pulled down and devoured by the dead');
 }
 
-export function zombieAttackVehicle(s: GameState, rt: Runtime, z: Zombie, v: Vehicle): void {
-  const rng = rt.rng;
+/** Which window a zombie at (x,y) is beating on: 0 windshield, 1 driver, 2 passenger, 3 rear. */
+export function windowFacing(v: Vehicle, x: number, y: number): number {
   const c = Math.cos(v.heading);
   const sn = Math.sin(v.heading);
-  const dx = z.x - v.x;
-  const dy = z.y - v.y;
+  const dx = x - v.x;
+  const dy = y - v.y;
   const lx = dx * c + dy * sn;
   const ly = -dx * sn + dy * c;
-  // 0 windshield, 1 driver (left = -ly in y-down), 2 passenger, 3 rear
-  const k = Math.abs(lx) > Math.abs(ly) * 1.6 ? (lx > 0 ? 0 : 3) : ly < 0 ? 1 : 2;
+  return Math.abs(lx) > Math.abs(ly) * 1.6 ? (lx > 0 ? 0 : 3) : ly < 0 ? 1 : 2;
+}
+
+export function zombieAttackVehicle(s: GameState, rt: Runtime, z: Zombie, v: Vehicle): void {
+  const rng = rt.rng;
+  const k = windowFacing(v, z.x, z.y);
+  const inside = s.player.inVehicle === v.id;
   emitNoise(s, rt, { x: z.x, y: z.y, radius: 6, kind: 'bang', src: 'zombie' });
-  if (v.windows[k] < 2 && rng.chance(0.3)) {
+  if (v.windows[k] < 2 && rng.chance(0.2)) {
     v.windows[k]++;
     if (v.windows[k] === 2) {
       emitNoise(s, rt, { x: z.x, y: z.y, radius: 10, kind: 'glass', src: 'zombie', label: 'Car glass shatters' });
-      if (s.player.inVehicle === v.id) {
-        log(s, 'A car window shatters!', 'danger');
+      if (inside) {
+        log(s, k === 3 ? 'The rear window shatters!' : 'A car window shatters! They can reach you now.', 'danger');
         note(s, 'carSurrounded');
       }
-    } else if (s.player.inVehicle === v.id && rng.chance(0.5)) log(s, 'The glass cracks under their fists.', 'warn');
+    } else if (inside && rng.chance(0.5)) log(s, 'The glass cracks under their fists.', 'warn');
+    return;
   }
-  if (s.player.inVehicle === v.id && v.windows[k] >= 2 && (k === 0 || k === 1)) zombieAttack(s, rt, z, true);
+  // through broken glass they reach in: the driver's window and windshield are closest, the passenger side is a stretch
+  if (inside && v.windows[k] >= 2 && k !== 3) zombieAttack(s, rt, z, true, k === 2 ? 0.5 : 1);
+}
+
+/** Enough hands through the glass and they pull the survivor out onto the road. */
+function dragOutOfCar(s: GameState, rt: Runtime, z: Zombie, v: Vehicle): void {
+  const p = s.player;
+  const a = Math.atan2(z.y - v.y, z.x - v.x);
+  let x = z.x - Math.cos(a) * 0.45;
+  let y = z.y - Math.sin(a) * 0.45;
+  for (let r = 0; r < 2 && collidesAt(s, x, y, v.id); r += 0.25) {
+    x = z.x + Math.cos(a) * r;
+    y = z.y + Math.sin(a) * r;
+  }
+  p.inVehicle = -1;
+  p.x = x;
+  p.y = y;
+  p.vx = p.vy = 0;
+  p.facing = a;
+  p.downT = 1.6;
+  v.horn = false;
+  rt.exitPending = false;
+  rt.fovDirty = true;
+  if (rt.rng.chance(0.6)) addInjury(s, rt, rt.rng.pick(['lArm', 'rArm', 'torso'] as const), 'cut', rt.rng.range(0.25, 0.5), 'dragged through broken glass');
+  log(s, 'They drag you out through the window!', 'danger');
+  chronicle(s, 'Dragged out of the car through a broken window.', 5);
+  note(s, 'carSurrounded');
 }
 
 // ------------------------------------------------------------------ survivor attacks
@@ -244,7 +299,7 @@ function resolveMelee(s: GameState, rt: Runtime): void {
   if (stompPending !== null) {
     const z = s.zombies.find((zz) => zz.id === stompPending);
     stompPending = null;
-    if (z && z.hp > 0 && Math.hypot(z.x - p.x, z.y - p.y) < 1.4) {
+    if (z && z.hp > 0 && Math.hypot(z.x - p.x, z.y - p.y) < 1.4 && reachClear(s.world, p.x, p.y, z.x, z.y)) {
       const base = stats ? stats.dmg * 1.5 : 0.85 + str * 0.06;
       const crit = rng.chance((stats ? stats.crit + 0.2 : 0.3) + (stats ? lvl(p, stats.skill) * 0.02 : 0));
       const dmg = base * (0.7 + 0.3 * vig) * (crit ? 2.3 : 1) * rng.range(0.85, 1.15);
@@ -261,7 +316,7 @@ function resolveMelee(s: GameState, rt: Runtime): void {
   const cands = zombiesNear(s, rt, p.x, p.y, reach + 0.3, tmp)
     .filter((z) => z.hp > 0 && z.state !== 'climb')
     .map((z) => ({ z, d: Math.hypot(z.x - p.x, z.y - p.y), off: Math.abs(angleDiff(p.facing, Math.atan2(z.y - p.y, z.x - p.x))) }))
-    .filter((c) => c.d <= reach && c.off <= arc)
+    .filter((c) => c.d <= reach && c.off <= arc && reachClear(s.world, p.x, p.y, c.z.x, c.z.y))
     .sort((a, b) => a.d - b.d)
     .slice(0, maxTargets);
   if (!cands.length) {
@@ -292,8 +347,12 @@ function resolveMelee(s: GameState, rt: Runtime): void {
   }
   for (const c of cands) {
     const z = c.z;
+    // a zombie that hasn't noticed you, struck from behind, is a sitting target
+    const unaware = (z.state === 'idle' || z.state === 'wander' || z.state === 'eat') && z.awareness < 0.6;
+    const behindIt = Math.abs(angleDiff(z.facing, Math.atan2(z.y - p.y, z.x - p.x))) < 1.2;
     let chance = 0.9 - panic * 0.25 - (1 - hf) * 0.4 + (stats ? lvl(p, stats.skill) * 0.02 : 0) - (p.needs.endurance < 0.2 ? 0.2 : 0);
     if (z.state === 'down' || z.state === 'stagger') chance += 0.1;
+    if (unaware) chance += 0.1;
     if (p.needs.drunk > 0.3) chance -= 0.1;
     if (!rng.chance(clamp(chance, 0.2, 0.97))) {
       if (rng.chance(0.4)) log(s, 'You miss.', 'warn');
@@ -302,7 +361,9 @@ function resolveMelee(s: GameState, rt: Runtime): void {
     const skill = stats ? lvl(p, stats.skill) : 0;
     let dmg = (stats ? stats.dmg : 0.25) * (0.7 + str * 0.06) * (0.55 + 0.45 * vig) * hf * (0.85 + skill * 0.03) * rng.range(0.8, 1.2);
     if (stats?.twoHanded && brokenArm(s)) dmg *= 0.45;
-    const crit = rng.chance((stats ? stats.crit : 0.05) + skill * 0.02 - panic * 0.05);
+    const sneak = unaware ? (behindIt ? 0.45 : 0.2) : 0;
+    const crit = rng.chance((stats ? stats.crit : 0.05) + skill * 0.02 - panic * 0.05 + sneak);
+    if (sneak && crit && stats) addXp(p, 'sneaking', 2);
     if (crit) dmg *= 2.2;
     const knock = (stats ? stats.knock : 0.4) * (0.6 + str * 0.06) * (0.5 + 0.5 * vig);
     hitZombie(s, rt, z, dmg, knock, crit, false);
@@ -394,7 +455,7 @@ export function playerShove(s: GameState, rt: Runtime): void {
   const grabbers = p.grabbedBy.slice();
   let targets = zombiesNear(s, rt, p.x, p.y, 1.35, tmp)
     .filter((z) => z.hp > 0 && z.state !== 'down' && !z.crawler)
-    .filter((z) => grabbers.includes(z.id) || Math.abs(angleDiff(p.facing, Math.atan2(z.y - p.y, z.x - p.x))) < 1.15)
+    .filter((z) => grabbers.includes(z.id) || (Math.abs(angleDiff(p.facing, Math.atan2(z.y - p.y, z.x - p.x))) < 1.15 && reachClear(s.world, p.x, p.y, z.x, z.y)))
     .sort((a, b) => (grabbers.includes(b.id) ? 1 : 0) - (grabbers.includes(a.id) ? 1 : 0) || Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y));
   targets = targets.slice(0, 2);
   for (const z of targets) {
@@ -565,7 +626,12 @@ export function updateCombat(s: GameState, rt: Runtime, c: Controls, dt: number,
   if (p.grabbedBy.length) {
     p.grabbedBy = p.grabbedBy.filter((id) => {
       const z = s.zombies.find((zz) => zz.id === id);
-      if (!z || z.hp <= 0 || z.state === 'down' || z.state === 'stagger' || Math.hypot(z.x - p.x, z.y - p.y) > 1.3) {
+      const v = p.inVehicle >= 0 ? s.vehicles[p.inVehicle] : null;
+      const far = !z || (v ? (() => {
+        const cl = vehClosest(v, z.x, z.y);
+        return Math.hypot(cl.x - z.x, cl.y - z.y) > 0.9;
+      })() : Math.hypot(z.x - p.x, z.y - p.y) > 1.3);
+      if (!z || z.hp <= 0 || z.state === 'down' || z.state === 'stagger' || far) {
         if (z) z.grabbing = false;
         return false;
       }

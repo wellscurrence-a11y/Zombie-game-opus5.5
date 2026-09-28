@@ -62,6 +62,8 @@ export class Runtime {
   lightVersion = 0;
   /** A vehicle was added or removed; the occupancy grid needs rebuilding. */
   vehDirty = false;
+  /** The survivor asked to get out while the car was moving: brake, then exit. */
+  exitPending = false;
   fireLightT = 0;
   noises: NoiseEvent[] = [];
   /** Sounds for the audio engine (consumed each frame). */

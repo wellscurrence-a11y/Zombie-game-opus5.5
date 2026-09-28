@@ -72,10 +72,14 @@ export function effectiveBleed(inj: Injury): number {
   return b;
 }
 
-/** Hours of food/drink need change per game hour. */
-const HUNGER_RATE = 0.034;
-const THIRST_RATE = 0.05;
-const FATIGUE_RATE = 0.043;
+/**
+ * Need change per game hour at rest. Roughly: hungry ~13 h after a full meal, starving after a day and a
+ * half, dead of starvation after ~4 days; thirsty ~7 h after a drink, deadly dehydration after ~2 days;
+ * tired after ~16 h awake, exhausted after ~20 h. Running and heat speed these up.
+ */
+const HUNGER_RATE = 0.026;
+const THIRST_RATE = 0.04;
+const FATIGUE_RATE = 0.036;
 
 export function outsideTemp(s: GameState): number {
   return s.weather.temp;
@@ -149,14 +153,19 @@ export function updateBody(s: GameState, rt: Runtime, hours: number, realDt: num
   // ---- temperature and wetness
   const w = s.world;
   const ti = Math.floor(p.y) * w.w + Math.floor(p.x);
-  const indoors = w.room[ti] >= 0 || p.inVehicle >= 0;
+  // a car keeps the rain off while the glass holds, but it's a tin box: little warmth unless the heater runs
+  const car = p.inVehicle >= 0 ? s.vehicles[p.inVehicle] : null;
+  const brokenGlass = car ? car.windows.filter((g) => g >= 2).length : 0;
+  const indoors = w.room[ti] >= 0 || (car !== null && brokenGlass === 0);
+  const exposure = car ? Math.min(1, brokenGlass * 0.3) : indoors ? 0 : 1;
   const { ins, water } = clothingInsulation(p);
-  if (!indoors && s.weather.rain > 0.05) n.wet += s.weather.rain * 0.7 * hours * (1 - water);
+  if (exposure > 0 && s.weather.rain > 0.05) n.wet += s.weather.rain * 0.7 * hours * (1 - water) * exposure;
   const heat = nearHeat(s);
-  n.wet -= hours * (indoors ? 0.3 : 0.12) * (1 + heat * 0.3) * (s.weather.rain > 0.05 && !indoors ? 0 : 1);
+  n.wet -= hours * (indoors || car ? 0.3 : 0.12) * (1 + heat * 0.3) * (s.weather.rain > 0.05 && exposure >= 1 ? 0 : 1);
   n.wet = clamp(n.wet, 0, 1);
-  let eff = outsideTemp(s) + (indoors ? 6 : 0) + ins * 2 - n.wet * 10 + heat + (sleeping && p.sleepQuality > 0.6 ? 4 : 0) + (p.running ? 4 : 0);
-  if (!indoors) eff -= s.weather.wind * 4;
+  const shelter = car ? (brokenGlass ? 1 : 3) + (car.engineOn ? 8 : 0) : indoors ? 6 : 0;
+  let eff = outsideTemp(s) + shelter + ins * 2 - n.wet * 10 + heat + (sleeping && p.sleepQuality > 0.6 ? 4 : 0) + (p.running ? 4 : 0);
+  eff -= s.weather.wind * 4 * exposure;
   const target = 37 + clamp((eff - 25) * 0.08, -4.5, 2.8);
   n.temp += (target - n.temp) * Math.min(1, hours * 0.6);
   if (n.temp < 36 && n.wet > 0.3) {
@@ -265,8 +274,8 @@ export function updateBody(s: GameState, rt: Runtime, hours: number, realDt: num
   for (const inj of b.injuries) maxInf = Math.max(maxInf, inj.infection);
   if (maxInf > 0.45) drain += (maxInf - 0.45) * 22 + (maxInf >= 1 ? 25 : 0);
   if (b.feverLevel > 0) drain += b.feverLevel * b.feverLevel * 20;
-  if (n.hunger >= 0.95) drain += 2.5;
-  if (n.thirst >= 0.95) drain += 7;
+  if (n.hunger >= 0.95) drain += 1.5;
+  if (n.thirst >= 0.95) drain += 3.5;
   if (n.temp < 35) drain += (35 - n.temp) * 9;
   if (n.temp > 39.5) drain += (n.temp - 39.5) * 9;
   if (n.sick > 0.7) drain += (n.sick - 0.6) * 18;

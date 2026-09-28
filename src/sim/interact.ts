@@ -622,6 +622,7 @@ export function trySleep(c: Ctx, where: string | null): void {
   const pi = Math.floor(p.y) * w.w + Math.floor(p.x);
   const bld = w.bld[pi];
   let unsafe = bld < 0 && p.inVehicle < 0;
+  if (p.inVehicle >= 0 && s.vehicles[p.inVehicle].windows.some((g) => g >= 2)) unsafe = true;
   if (bld >= 0) {
     const b = w.buildings[bld];
     for (const di of b.doors) {

@@ -145,6 +145,10 @@ export function updateVehicles(s: GameState, rt: Runtime, pf: PathFinder, input:
     const engineK = 0.35 + 0.65 * (v.engine / 100);
     let throttle = driven && input ? input.throttle : 0;
     const steerIn = driven && input ? input.steer : 0;
+    if (driven && rt.exitPending) {
+      if (throttle !== 0) rt.exitPending = false;
+      else if (input) input.brake = true;
+    }
     if (!v.engineOn) throttle = 0;
     // engine running: fuel, battery, noise
     if (v.engineOn) {
@@ -190,6 +194,13 @@ export function updateVehicles(s: GameState, rt: Runtime, pf: PathFinder, input:
     if (Math.abs(v.speed) < drag * dt) v.speed = 0;
     else v.speed -= Math.sign(v.speed) * drag * dt;
     if (driven && input?.brake) v.speed *= Math.max(0, 1 - dt * 3.5);
+    // nodding off at the wheel
+    const fat = driven ? s.player.needs.fatigue : 0;
+    if (fat > 0.85 && Math.abs(v.speed) > 4 && rt.rng.chance(dt * (fat - 0.85) * 0.6)) {
+      v.steer = rt.rng.chance(0.5) ? 1 : -1;
+      log(s, 'Your eyes close for a second — the car drifts!', 'danger');
+      note(s, 'sleep');
+    }
     // steering
     v.steer += (steerIn - v.steer) * Math.min(1, dt * 4);
     const ang = v.steer * 0.6 / (1 + Math.abs(v.speed) * 0.045);
@@ -292,14 +303,17 @@ export function updateVehicles(s: GameState, rt: Runtime, pf: PathFinder, input:
     refreshVehOcc(s, pf);
     rt.vehDirty = false;
   }
-  // release grabs when the car moves away
   const p = s.player;
-  if (p.inVehicle >= 0 && Math.abs(s.vehicles[p.inVehicle].speed) > 1.5 && p.grabbedBy.length) {
-    for (const id of p.grabbedBy) {
-      const z = s.zombies.find((zz) => zz.id === id);
-      if (z) z.grabbing = false;
+  if (p.inVehicle >= 0) {
+    const v = s.vehicles[p.inVehicle];
+    // the survivor rides along
+    p.x = v.x;
+    p.y = v.y;
+    // hands reaching through the windows lose their grip once the car gets going
+    if (Math.abs(v.speed) > 1.5 && p.grabbedBy.length) {
+      releaseCarGrabs(s);
+      log(s, 'You pull away and the hands lose their grip.', 'good');
     }
-    p.grabbedBy = [];
   }
 }
 
@@ -339,35 +353,85 @@ export function enterVehicle(c: Ctx, v: Vehicle): void {
   });
 }
 
+/** Is the straight line from inside the car to (x,y) free of walls and fences? */
+function clearPath(s: GameState, v: Vehicle, x0: number, y0: number, x: number, y: number): boolean {
+  const d = Math.hypot(x - x0, y - y0);
+  const n = Math.max(2, Math.ceil(d / 0.2));
+  for (let k = 1; k <= n; k++) {
+    const t = k / n;
+    if (collides(s, x0 + (x - x0) * t, y0 + (y - y0) * t, 0.06, { ignoreVehicle: v.id })) return false;
+  }
+  return true;
+}
+
+/** Where the survivor can step out: a door if possible, otherwise squeezing out through a window. */
+export function exitSpot(s: GameState, v: Vehicle): { x: number; y: number; squeeze: boolean } | null {
+  const spec = VEH[v.type];
+  const cs = Math.cos(v.heading);
+  const sn = Math.sin(v.heading);
+  // local (a along the car, b across; b < 0 is the driver's side)
+  const at = (a: number, b: number): [number, number] => [v.x + cs * a - sn * b, v.y + sn * a + cs * b];
+  const side = spec.w / 2 + 0.5;
+  const end = spec.l / 2 + 0.55;
+  const doors: [number, number][] = [driverDoor(v), at(0.4, side), at(-spec.l * 0.22, -side), at(-spec.l * 0.22, side), at(0.4, -side - 0.35), at(0.4, side + 0.35)];
+  const ends: [number, number][] = [at(-end, 0), at(end, 0), at(-end, -spec.w * 0.35), at(-end, spec.w * 0.35), at(end, -spec.w * 0.35), at(end, spec.w * 0.35)];
+  const ok = (x: number, y: number, fromA: number): boolean => {
+    if (collides(s, x, y, PLAYER_R, { ignoreVehicle: v.id })) return false;
+    const [ix, iy] = at(fromA, 0);
+    return clearPath(s, v, ix, iy, x, y);
+  };
+  for (const [x, y] of doors) if (ok(x, y, 0.2)) return { x, y, squeeze: false };
+  for (const [x, y] of ends) if (ok(x, y, Math.sign((x - v.x) * cs + (y - v.y) * sn) * spec.l * 0.3)) return { x, y, squeeze: true };
+  // wedged in: any open spot close by that can be reached through a window
+  for (let r = 0.3; r <= 2.2; r += 0.35) {
+    for (let k = 0; k < 16; k++) {
+      const a = (k / 16) * Math.PI * 2;
+      const [x, y] = at(Math.cos(a) * (end + r), Math.sin(a) * (side + r));
+      if (ok(x, y, 0)) return { x, y, squeeze: true };
+    }
+  }
+  return null;
+}
+
 export function exitVehicle(c: Ctx): void {
   const s = c.s;
   const p = s.player;
   const v = s.vehicles[p.inVehicle];
   if (!v) return;
   if (Math.abs(v.speed) > 1.5) {
-    log(s, 'Not while it\'s moving!', 'warn');
+    // brake to a stop first; the step loop lets you out once it's slow enough
+    if (!c.rt.exitPending) log(s, 'You brake to a stop to get out.', 'info');
+    c.rt.exitPending = true;
     return;
   }
-  const spec = VEH[v.type];
-  const cands: [number, number][] = [driverDoor(v)];
-  const cs = Math.cos(v.heading);
-  const sn = Math.sin(v.heading);
-  const off = spec.w / 2 + 0.55;
-  cands.push([v.x + cs * 0.4 - sn * off, v.y + sn * 0.4 + cs * off]);
-  cands.push([v.x - cs * (spec.l / 2 + 0.6), v.y - sn * (spec.l / 2 + 0.6)]);
-  cands.push([v.x + cs * (spec.l / 2 + 0.6), v.y + sn * (spec.l / 2 + 0.6)]);
-  for (const [x, y] of cands) {
-    if (!collides(s, x, y, PLAYER_R, { ignoreVehicle: v.id })) {
-      p.inVehicle = -1;
-      p.x = x;
-      p.y = y;
-      v.horn = false;
-      c.rt.fovDirty = true;
-      emitNoise(s, c.rt, { x, y, radius: 4, kind: 'door', src: 'player' });
-      return;
-    }
+  c.rt.exitPending = false;
+  const spot = exitSpot(s, v);
+  if (!spot) {
+    log(s, 'You can\'t get out here — every door and window is blocked. Drive somewhere with more room.', 'danger');
+    return;
   }
-  log(s, 'You can\'t open the doors — something is in the way!', 'danger');
+  p.inVehicle = -1;
+  p.x = spot.x;
+  p.y = spot.y;
+  p.vx = p.vy = 0;
+  p.facing = Math.atan2(spot.y - v.y, spot.x - v.x);
+  v.horn = false;
+  c.rt.fovDirty = true;
+  releaseCarGrabs(s);
+  if (spot.squeeze) {
+    log(s, 'The doors are blocked. You climb out through a window.', 'info');
+    if (v.windows.some((w) => w >= 2) && c.rt.rng.chance(0.25)) addInjury(s, c.rt, c.rt.rng.pick(['lHand', 'rHand', 'lArm', 'rArm'] as const), 'cut', c.rt.rng.range(0.15, 0.35), 'glass in the car window');
+  }
+  emitNoise(s, c.rt, { x: spot.x, y: spot.y, radius: 4, kind: 'door', src: 'player' });
+}
+
+function releaseCarGrabs(s: GameState): void {
+  const p = s.player;
+  for (const id of p.grabbedBy) {
+    const z = s.zombies.find((zz) => zz.id === id);
+    if (z) z.grabbing = false;
+  }
+  p.grabbedBy = [];
 }
 
 export function startEngine(c: Ctx): void {

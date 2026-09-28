@@ -2,16 +2,16 @@
 import { timeScale } from '../core/time';
 import { killPlayer, updateBody } from './body';
 import { updateCombat } from './combat';
-import { updateClimb } from './interact';
+import { trySleep, updateClimb } from './interact';
 import { computeLights } from './lighting';
-import { log } from './log';
+import { chronicle, log } from './log';
 import { emitNoise } from './noise';
 import type { PathFinder } from './path';
 import { updatePlayerMovement, type Controls } from './player';
 import { rebuildZGrid, type Runtime } from './runtime';
 import { hasTrait } from './traits';
 import type { GameState } from './types';
-import { updateVehicles, type DriveInput } from './vehicles';
+import { exitVehicle, updateVehicles, type DriveInput } from './vehicles';
 import { updateVision } from './vision';
 import { updateWorld } from './world-systems';
 import { updateZombies } from './zombies';
@@ -43,6 +43,10 @@ export function simStep(c: SimCtx, dt: number, realDt: number, first: boolean, a
     updateAction(c, dt);
   }
   updateVehicles(s, rt, c.pf, p.inVehicle >= 0 ? c.drive : null, dt);
+  if (rt.exitPending) {
+    if (p.inVehicle < 0 || p.dead) rt.exitPending = false;
+    else if (Math.abs(s.vehicles[p.inVehicle].speed) <= 1.5) exitVehicle(c);
+  }
   updateCombat(s, rt, c.controls, dt, first && allowInput);
   if (!first) {
     c.controls.attack = false;
@@ -51,6 +55,16 @@ export function simStep(c: SimCtx, dt: number, realDt: number, first: boolean, a
   }
   updateZombies(s, rt, c.pf, dt);
   updateBody(s, rt, hours, realDt);
+  // push past exhaustion and the body decides for you
+  if (!p.dead && !p.sleeping && p.needs.fatigue >= 0.985 && rt.threat === 0 && rt.closestZombie >= 8 && !rt.action && p.climbT <= 0 && p.downT <= 0) {
+    const v = p.inVehicle >= 0 ? s.vehicles[p.inVehicle] : null;
+    if (!v || Math.abs(v.speed) < 0.5) {
+      log(s, 'You can\'t keep your eyes open any longer. You collapse into sleep where you are.', 'danger');
+      chronicle(s, 'Collapsed from exhaustion.', 3);
+      p.needs.panic = 0;
+      trySleep(c, v ? 'car' : null);
+    }
+  }
   updateWorld(s, rt, dt, hours);
   updateVision(s, rt);
   if (rt.lightDirty) computeLights(s, rt);
