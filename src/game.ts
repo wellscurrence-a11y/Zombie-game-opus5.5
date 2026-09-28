@@ -73,16 +73,36 @@ export class Game implements Ctx {
     this.last = performance.now();
     const loop = (now: number): void => {
       if (!this.running) return;
+      // schedule the next frame first: a bug in one frame must never freeze the game
+      requestAnimationFrame(loop);
       const dt = Math.min(0.1, (now - this.last) / 1000);
       this.last = now;
-      this.frame(dt);
-      requestAnimationFrame(loop);
+      try {
+        this.frame(dt);
+      } catch (e) {
+        this.reportError(e);
+        this.input.endFrame();
+      }
     };
     requestAnimationFrame(loop);
   }
 
   stop(): void {
     this.running = false;
+  }
+
+  private errorsSeen = new Set<string>();
+  /** Keep playing after an unexpected error, but say so once so it can be reported. */
+  reportError(e: unknown): void {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(e);
+    if (this.errorsSeen.has(msg) || this.errorsSeen.size > 5) return;
+    this.errorsSeen.add(msg);
+    try {
+      log(this.s, `Something went wrong (${msg}). The game kept running.`, 'warn');
+    } catch {
+      // nothing more to do
+    }
   }
 
   /** Current time multiplier. */
@@ -151,17 +171,17 @@ export class Game implements Ctx {
       return;
     }
     if (p.inVehicle >= 0) {
-      if (inp.hit('KeyE')) exitVehicle(this);
+      const v = s.vehicles[p.inVehicle];
       if (inp.hit('KeyR')) startEngine(this);
       if (inp.hit('KeyF')) {
-        const v = s.vehicles[p.inVehicle];
         v.lights = !v.lights;
         rt.fovDirty = true;
       }
-      const v = s.vehicles[p.inVehicle];
       v.horn = inp.down('KeyG');
       // right-click anywhere while inside: the car's own options (engine, glovebox, get out...)
       if (inp.rmbPressed && !inp.overUi) this.showContext({ kind: 'vehicle', x: v.x, y: v.y, id: v.id }, inp.mouseX, inp.mouseY);
+      // last: once out of the car, nothing above applies any more
+      if (inp.hit('KeyE')) exitVehicle(this);
       return;
     }
     if (inp.hit('KeyC')) {
