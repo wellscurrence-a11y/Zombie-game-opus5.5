@@ -9,6 +9,7 @@ import type { GameState, WorldSettings } from './sim/types';
 import { contributingFactors, deathScreen, helpScreen, mainMenu, pauseScreen, recordsScreen, settingsScreen, survivorCreation, type Prefs } from './ui/screens';
 import { UI } from './ui/ui';
 import { zombiesNear } from './sim/runtime';
+import { normalizeZombies } from './sim/population';
 import { AudioEngine } from './audio/audio';
 
 /** `?gfx=low|medium|high` forces a tier (for testing). */
@@ -167,6 +168,7 @@ class App {
   }
 
   play(s: GameState): void {
+    normalizeZombies(s);
     this.stopGame();
     const g = new Game(this.canvas, s, this.renderer, this.input);
     this.game = g;

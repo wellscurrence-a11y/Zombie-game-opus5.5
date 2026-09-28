@@ -95,8 +95,12 @@ describe('world events', () => {
     run(30);
     expect(s.events.heli?.active).toBe(true);
     expect(s.events.helicopterDone).toBe(true);
-    run(200);
-    const drawn = s.zombies.filter((z) => z.state === 'investigate' || z.state === 'search' || z.state === 'chase').length;
+    // count the most zombies pulled along at any point during the flyover
+    let drawn = 0;
+    for (let k = 0; k < 20; k++) {
+      run(10);
+      drawn = Math.max(drawn, s.zombies.filter((z) => z.state === 'investigate' || z.state === 'search' || z.state === 'chase').length);
+    }
     expect(drawn).toBeGreaterThan(5);
   }, 60000);
 

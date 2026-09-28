@@ -464,8 +464,9 @@ function updateEvents(s: GameState, rt: Runtime): void {
       break;
     }
     case 'crash': {
-      const pt = roadPointFar(s, rt, 50, 110) ?? farPoint(s, rt, 50, 110);
-      spawnWreck(s, rt, pt.x, pt.y);
+      // somewhere on a road, away from the survivor and clear of other cars
+      let pt = roadPointFar(s, rt, 50, 110) ?? farPoint(s, rt, 50, 110);
+      for (let k = 0; k < 12 && !spawnWreck(s, rt, pt.x, pt.y); k++) pt = roadPointFar(s, rt, 50, 110) ?? farPoint(s, rt, 50, 110);
       for (let k = 0; k < 3; k++) emitNoise(s, rt, { x: pt.x, y: pt.y, radius: 35, kind: 'crash', src: 'world', label: 'A distant car crash' });
       if (Math.hypot(pt.x - p.x, pt.y - p.y) < 110) log(s, `Tires screech and metal crunches ${describeDirection(s, pt.x, pt.y)}. Someone else is out there.`, 'sound');
       break;
@@ -517,8 +518,8 @@ function roadPointFar(s: GameState, rt: Runtime, min: number, max: number): { x:
   return null;
 }
 
-function spawnWreck(s: GameState, rt: Runtime, x: number, y: number): void {
-  if (s.vehicles.some((v) => Math.hypot(v.x - x, v.y - y) < 6)) return;
+function spawnWreck(s: GameState, rt: Runtime, x: number, y: number): boolean {
+  if (s.vehicles.some((v) => Math.hypot(v.x - x, v.y - y) < 6)) return false;
   const v = createVehicle(s.world, rt.rng, s, s.vehicles.length, { x, y, heading: rt.rng.range(-Math.PI, Math.PI), crashed: true, key: rt.rng.chance(0.5) ? 'ignition' : 'none' });
   v.wrecked = rt.rng.chance(0.4);
   s.vehicles.push(v);
@@ -527,6 +528,7 @@ function spawnWreck(s: GameState, rt: Runtime, x: number, y: number): void {
   const z = newZombie(s, rt.rng, x + rt.rng.range(-2, 2), y + rt.rng.range(-2, 2), 'survivor');
   z.items = [makeItem(s, 'carKey', { keyId: v.keyId, label: 'Car key' })];
   s.zombies.push(z);
+  return true;
 }
 
 function updateGunfire(s: GameState, rt: Runtime, dt: number): void {

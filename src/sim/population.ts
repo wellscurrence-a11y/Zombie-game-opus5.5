@@ -7,11 +7,17 @@ import type { GameState, Zombie, ZKind } from './types';
 import { makeItem } from './items';
 import { inVehicle } from './vehicleSpecs';
 
+/**
+ * Every zombie is the same kind of shambler: slower than a walking survivor, equally tough, equally keen.
+ * Only tiny natural differences remain; clothes and pockets still show who they were.
+ */
+export const Z_SPEED = 0.88;
+export const Z_HP = 2.4;
+
 export function newZombie(s: GameState, rng: Rng, x: number, y: number, kind: ZKind = 'civ'): Zombie {
-  const crawler = rng.chance(0.035);
-  const fast = rng.chance(0.08);
-  const speed = crawler ? rng.range(0.3, 0.45) : fast ? rng.range(1.15, 1.32) : Math.max(0.6, Math.min(1.12, rng.gauss(0.88, 0.11)));
-  const hp = Math.max(1.6, Math.min(3.4, rng.gauss(2.4, 0.4))) * (kind === 'soldier' ? 1.15 : 1);
+  const crawler = false;
+  const speed = Math.max(0.82, Math.min(0.94, rng.gauss(Z_SPEED, 0.03)));
+  const hp = Math.max(2.2, Math.min(2.6, rng.gauss(Z_HP, 0.1)));
   const z: Zombie = {
     id: s.nextZombieId++,
     x, y,
@@ -28,8 +34,8 @@ export function newZombie(s: GameState, rng: Rng, x: number, y: number, kind: ZK
     outfit: rng.int(0, 0xffffff),
     kind,
     bangIdx: -1, bangT: 0,
-    hearing: rng.range(0.75, 1.25),
-    sight: rng.range(0.75, 1.2),
+    hearing: rng.range(0.92, 1.08),
+    sight: rng.range(0.92, 1.08),
     items: null,
     grabbing: false,
     vx: 0, vy: 0,
@@ -43,6 +49,21 @@ export function newZombie(s: GameState, rng: Rng, x: number, y: number, kind: ZK
     lastX: x, lastY: y,
   };
   return z;
+}
+
+/** Older saves had crawlers and fast runners; bring them in line with everyone else. */
+export function normalizeZombies(s: GameState): void {
+  for (const z of s.zombies) {
+    z.crawler = false;
+    z.speed = Math.max(0.82, Math.min(0.94, z.speed));
+    if (z.maxHp > 2.6 || z.maxHp < 2.2) {
+      const k = z.hp / z.maxHp;
+      z.maxHp = Math.max(2.2, Math.min(2.6, z.maxHp));
+      z.hp = z.maxHp * k;
+    }
+    z.hearing = Math.max(0.92, Math.min(1.08, z.hearing));
+    z.sight = Math.max(0.92, Math.min(1.08, z.sight));
+  }
 }
 
 function isFreeTile(w: World, x: number, y: number): boolean {
