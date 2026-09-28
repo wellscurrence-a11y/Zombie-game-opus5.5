@@ -2,7 +2,7 @@
 import { angleDiff, clamp } from '../core/math';
 import { S, WIN_CLOSED } from '../world/world';
 import { addInjury, killPlayer, PART_NAMES } from './body';
-import { def, itemName, type BodyPart, type Item } from './items';
+import { def, itemName, makeItem, type BodyPart, type Item } from './items';
 import { chronicle, log, note } from './log';
 import { emitNoise } from './noise';
 import type { Controls } from './player';
@@ -565,6 +565,23 @@ export function fireWeapon(s: GameState, rt: Runtime, aimX: number, aimY: number
     }
   }
   const [ex, ey] = tracerEnd ?? [p.x, p.y];
+  if (f.bow) {
+    // a soft twang, and about half the time the arrow can be picked up where it fell
+    rt.effects.push({ kind: 'tracer', x: p.x + Math.cos(base) * 0.5, y: p.y + Math.sin(base) * 0.5, x2: ex, y2: ey, t: rt.realTime, dur: 0.18 });
+    emitNoise(s, rt, { x: p.x, y: p.y, radius: f.noise, kind: 'twang', src: 'player' });
+    const tx = Math.floor(ex - Math.cos(base) * 0.3);
+    const ty = Math.floor(ey - Math.sin(base) * 0.3);
+    if (rng.chance(0.55) && tx >= 0 && ty >= 0 && tx < w.w && ty < w.h && w.struct[ty * w.w + tx] === S.None) {
+      const pile = (s.floor[ty * w.w + tx] ??= []);
+      const stack = pile.find((i) => i.id === 'arrow');
+      if (stack) stack.qty++;
+      else pile.push(makeItem(s, 'arrow'));
+      rt.dirty.floor = true;
+    }
+    gun.cond = Math.max(0.05, gun.cond - 0.004);
+    addXp(p, 'firearms', 4);
+    return;
+  }
   rt.effects.push({ kind: 'flash', x: p.x + Math.cos(base) * 0.6, y: p.y + Math.sin(base) * 0.6, t: rt.realTime, dur: 0.12 });
   rt.effects.push({ kind: 'tracer', x: p.x + Math.cos(base) * 0.6, y: p.y + Math.sin(base) * 0.6, x2: ex, y2: ey, t: rt.realTime, dur: 0.1 });
   rt.shake = Math.max(rt.shake, f.pellets > 1 ? 1 : 0.6);

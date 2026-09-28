@@ -440,6 +440,11 @@ export const RECIPES: Recipe[] = [
   { id: 'spear', name: 'Carve a spear', needs: [['plank', 1]], tools: ['knife'], dur: 12, out: [['spear', 1]], desc: 'Long reach, poor durability.' },
   { id: 'planks', name: 'Saw log into planks', needs: [['log', 1]], tools: ['saw'], dur: 10, noise: 9, out: [['plank', 3]], desc: 'Noisy work.' },
   { id: 'molotov', name: 'Make a Molotov cocktail', needs: [['emptyBottle', 1], ['rag', 1]], tools: ['#fuel'], dur: 5, out: [['molotov', 1]], desc: 'Needs 0.5 L of gasoline. Fire spreads — carefully.' },
+  { id: 'nailbat', name: 'Hammer nails into a bat', needs: [['bat', 1], ['nails', 8]], tools: ['hammer'], dur: 10, noise: 12, out: [['nailbat', 1]], desc: 'More damage than a plain bat. Hammering is loud.' },
+  { id: 'nailplank', name: 'Hammer nails into a plank', needs: [['plank', 1], ['nails', 6]], tools: ['hammer'], dur: 8, noise: 12, out: [['nailplank', 1]], desc: 'A crude but real weapon.' },
+  { id: 'rod', name: 'Make a fishing rod', needs: [['branch', 1], ['twine', 1], ['nails', 1]], tools: ['knife'], dur: 10, out: [['rodImprov', 1]], desc: 'Bend a nail into a hook. Fish at the river.' },
+  { id: 'bow', name: 'Make a bow', needs: [['branch', 1], ['twine', 1]], tools: ['knife'], dur: 20, out: [['bow', 1]], desc: 'A quiet ranged weapon. Weak, but nobody hears it.' },
+  { id: 'arrows', name: 'Whittle arrows', needs: [['stick', 2], ['nails', 3]], tools: ['knife'], dur: 10, out: [['arrow', 3]], desc: 'Three arrows from straight twigs and nails.' },
   { id: 'canAlarm', name: 'String a tin-can alarm', needs: [['emptyCan', 3], ['twine', 1]], mag: 'traps', dur: 8, out: [['alarmtrapItem', 1]], desc: 'Place it across a doorway. Rattles loudly when something passes.' },
   { id: 'crate', name: 'Build a storage crate kit', needs: [['plank', 3], ['nails', 6]], tools: ['hammer'], skill: ['carpentry', 1], dur: 14, noise: 14, out: [['woodcrateItem', 1]], desc: 'A crate that holds 40 kg.' },
   { id: 'barrel', name: 'Build a rain collector kit', needs: [['plank', 4], ['nails', 6], ['garbageBag', 4]], tools: ['hammer'], skill: ['carpentry', 2], dur: 18, noise: 14, out: [['rainbarrelItem', 1]], desc: 'Collects rainwater outdoors. Boil or treat before drinking.' },
@@ -508,6 +513,32 @@ export function insertBattery(c: Ctx, uid: number): void {
   consume(s, 'battery', 1);
   it.charge = 1;
   log(s, `New battery in the ${itemName(it).toLowerCase()}.`, 'good');
+}
+
+/** How much a duct-tape patch would restore right now (each patch helps less). */
+export function tapeRepairAmount(it: Item): number {
+  return Math.max(0, Math.min(1 - it.cond, 0.3 * Math.pow(0.8, it.repairs ?? 0)));
+}
+
+export function repairWithTape(c: Ctx, uid: number): void {
+  const s = c.s;
+  const it = carried(s).find((i) => i.uid === uid);
+  const tape = carried(s).find((i) => i.id === 'ducttape' && (i.usesLeft ?? 0) > 0);
+  if (!it || !def(it.id).weapon) return;
+  if (!tape) return log(s, 'You need duct tape.', 'warn');
+  if (tapeRepairAmount(it) < 0.02) return log(s, 'Tape won\'t do any more for it.', 'info');
+  startAction(c, {
+    label: `Taping up the ${def(it.id).name.toLowerCase()}`, dur: 4, cancelOnMove: true, anim: 'work',
+    onDone: () => {
+      const tp = carried(s).find((i) => i.id === 'ducttape' && (i.usesLeft ?? 0) > 0);
+      if (!tp || !carried(s).includes(it)) return;
+      const gain = tapeRepairAmount(it);
+      it.cond = Math.min(1, it.cond + gain);
+      it.repairs = (it.repairs ?? 0) + 1;
+      useCharge(s, tp);
+      log(s, `You wrap the ${def(it.id).name.toLowerCase()} in tape (+${Math.round(gain * 100)}% condition).`, 'good');
+    },
+  });
 }
 
 export function describe(it: Item): string {

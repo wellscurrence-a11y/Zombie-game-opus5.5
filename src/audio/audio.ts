@@ -179,6 +179,10 @@ export class AudioEngine {
         this.noiseHit(this.out(pan, vol * 1.3, 0.6), 0.35, 1800, 'lowpass', 0.7, 0.001);
         this.tone(this.out(pan, vol, 0.4), 'sine', 110, 40, 0.4, 1);
         break;
+      case 'twang':
+        this.tone(this.out(pan, vol * 0.7), 'triangle', 190, 110, 0.28, 0.6);
+        this.noiseHit(this.out(pan, vol * 0.25), 0.05, 1800, 'bandpass', 2);
+        break;
       case 'hit':
       case 'thud':
       case 'fall':

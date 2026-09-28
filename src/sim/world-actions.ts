@@ -1,5 +1,6 @@
 // Stoves, campfires, generators, pumps, rain barrels, wells, traps, foraging, farming, trees and building.
 import { clamp } from '../core/math';
+import { hourOfDay } from '../core/time';
 import { FURN } from '../world/furniture';
 import { G, S, type Furniture } from '../world/world';
 import { addInjury } from './body';
@@ -78,6 +79,8 @@ function cookingOptions(c: Ctx, f: Furniture): Option[] {
       } });
     }
   }
+  if (f.on) out.push(...stewOption(c, f));
+  if (f.on && f.kind !== 'stove') out.push(...smokeOption(c, f));
   // put food on
   for (const it of carried(s)) {
     if (!isCookable(it)) continue;
@@ -100,6 +103,68 @@ function cookingOptions(c: Ctx, f: Furniture): Option[] {
     } });
   }
   return out;
+}
+
+// ================================================================== stews & soups
+
+const STEW_INGREDIENTS = ['fish', 'steak', 'chicken', 'potato', 'carrot', 'tomato', 'cabbage', 'rice', 'pasta'];
+
+/** Three ingredients and half a litre of water in a pot over a fire make a hot meal that goes further. */
+function stewOption(c: Ctx, f: Furniture): Option[] {
+  const s = c.s;
+  const pot = carried(s).find((it) => it.id === 'pot' && (it.fill ?? 0) >= 0.5 && (it.liquid === 'water' || it.liquid === 'tainted'));
+  const ingredients = carried(s).filter((it) => STEW_INGREDIENTS.includes(it.id) && !it.burnt);
+  const ok = !!pot && ingredients.length >= 3;
+  const hasFish = ingredients.slice(0, 3).some((it) => it.id === 'fish');
+  return [{
+    label: `Cook ${hasFish ? 'a fish soup' : 'a stew'} (30 min)`, enabled: ok,
+    reason: !pot ? 'Need a pot with 0.5 L of water' : 'Need 3 ingredients (meat, fish, vegetables, rice or pasta)',
+    run: () => startAction(c, {
+      label: hasFish ? 'Cooking fish soup' : 'Cooking a stew', dur: 999, gameHours: 0.5, ffwd: true, cancelOnMove: true, anim: 'use',
+      onDone: () => {
+        if (!f.on) return log(s, 'The fire went out before it was done.', 'warn');
+        const potNow = carried(s).find((it) => it.id === 'pot' && (it.fill ?? 0) >= 0.5 && (it.liquid === 'water' || it.liquid === 'tainted'));
+        const use = carried(s).filter((it) => STEW_INGREDIENTS.includes(it.id) && !it.burnt).slice(0, 3);
+        if (!potNow || use.length < 3) return log(s, 'Something is missing.', 'warn');
+        const fish = use.some((it) => it.id === 'fish');
+        for (const it of use) consume(s, it.id, 1);
+        potNow.fill = (potNow.fill ?? 0) - 0.5;
+        if ((potNow.fill ?? 0) < 0.01) {
+          potNow.fill = 0;
+          potNow.liquid = undefined;
+        }
+        addItem(s, { kind: 'player' }, makeItem(s, fish ? 'fishSoup' : 'stew'), true);
+        addXp(s.player, 'cooking', 10);
+        log(s, fish ? 'A pot of fish soup. It smells like a normal evening.' : 'A pot of stew, hot and thick.', 'good');
+      },
+    }),
+  }];
+}
+
+/** Slow smoke over a wood fire turns meat and fish that would rot in a day into jerky that keeps. */
+function smokeOption(c: Ctx, f: Furniture): Option[] {
+  const s = c.s;
+  const raw = carried(s).filter((it) => (it.id === 'steak' || it.id === 'chicken' || it.id === 'fish') && !it.burnt);
+  if (!raw.length) return [];
+  const yieldOf = (id: string): number => (id === 'fish' ? 1 : 2);
+  const total = raw.reduce((a, it) => a + yieldOf(it.id), 0);
+  return [{
+    label: `Smoke meat and fish into jerky (2 h, makes ${total})`, enabled: (f.fuel ?? 0) >= 1.5, reason: 'The fire needs 2 hours of fuel',
+    run: () => startAction(c, {
+      label: 'Smoking meat', dur: 999, gameHours: 2, ffwd: true, cancelOnMove: true, anim: 'kneel',
+      onDone: () => {
+        if (!f.on) return log(s, 'The fire died. The meat is only half done.', 'warn');
+        let n = 0;
+        for (const it of carried(s).filter((i) => (i.id === 'steak' || i.id === 'chicken' || i.id === 'fish') && !i.burnt)) {
+          if (!consume(s, it.id, 1)) continue;
+          n += yieldOf(it.id);
+        }
+        for (let k = 0; k < n; k++) addItem(s, { kind: 'player' }, makeItem(s, 'jerky'), true);
+        addXp(s.player, 'cooking', 8);
+        log(s, n ? `${n} strips of jerky. It will keep for weeks.` : 'Nothing left to smoke.', n ? 'good' : 'info');
+      },
+    }),
+  }];
 }
 
 /** Called every game-time tick for stoves, grills and campfires. */
@@ -562,6 +627,8 @@ export function groundActions(c: Ctx, x: number, y: number): Option[] {
     }) });
   }
   out.push(...forageOption(c, x, y));
+  if (g === G.Water) out.push(...fishingOption(c, x, y));
+  if ((g === G.Grass || g === G.Dirt || g === G.TallGrass || g === G.Forest) && w.bld[i] < 0) out.push(...wormOption(c, x, y));
   // campfire
   if (w.furn[i] < 0 && g !== G.Water) {
     const planks = countItem(s, 'plank');
@@ -582,6 +649,81 @@ export function groundActions(c: Ctx, x: number, y: number): Option[] {
     }) });
   }
   return out;
+}
+
+// ================================================================== fishing
+
+function fishingOption(c: Ctx, x: number, y: number): Option[] {
+  const s = c.s;
+  const rod = carried(s).find((it) => def(it.id).tools?.includes('fishing'));
+  const worms = countItem(s, 'worms');
+  return [{
+    label: `Fish here (about an hour${worms ? `, ${worms} worms for bait` : ', no bait'})`, enabled: !!rod, reason: rod ? undefined : 'Need a fishing rod',
+    run: () => startAction(c, {
+      label: 'Fishing', dur: 999, gameHours: 1, ffwd: true, cancelOnMove: true, anim: 'use',
+      onDone: () => fishCatch(c, x, y),
+    }),
+  }];
+}
+
+/** Two chances an hour. Skill, bait, dawn and dusk, and a bit of rain help; cold water and a bent-nail hook don't. */
+export function fishCatch(c: Ctx, x: number, y: number): number {
+  const s = c.s;
+  const rt = c.rt;
+  const p = s.player;
+  const rod = carried(s).find((it) => def(it.id).tools?.includes('fishing'));
+  if (!rod) return 0;
+  const improvised = rod.id === 'rodImprov';
+  const h = hourOfDay(s.time);
+  let caught = 0;
+  let baitUsed = 0;
+  for (let k = 0; k < 2; k++) {
+    const bait = countItem(s, 'worms') > 0;
+    let ch = 0.22 + lvl(p, 'foraging') * 0.04 + (bait ? 0.28 : 0);
+    if ((h >= 5 && h < 8.5) || (h >= 17 && h < 20.5)) ch += 0.15;
+    if (s.weather.rain > 0.1 && s.weather.rain < 0.7) ch += 0.08;
+    if (s.weather.temp < 5) ch -= 0.12;
+    if (improvised) ch *= 0.7;
+    if (bait) {
+      consume(s, 'worms', 1);
+      baitUsed++;
+    }
+    if (rt.rng.chance(clamp(ch, 0.05, 0.85))) caught++;
+  }
+  for (let k = 0; k < caught; k++) addItem(s, { kind: 'player' }, makeItem(s, 'fish'), true);
+  addXp(p, 'foraging', 3 + caught * 5);
+  rod.cond -= improvised ? 0.1 : 0.03;
+  const baitNote = baitUsed ? ` (${baitUsed} worm${baitUsed > 1 ? 's' : ''} used)` : '';
+  if (caught) log(s, `You land ${caught === 1 ? 'a fish' : `${caught} fish`}${baitNote}. Cook it soon; it won't keep.`, 'good');
+  else log(s, `Nothing's biting${baitNote}.`, 'info');
+  if (rod.cond <= 0) {
+    consume(s, rod.id, 1);
+    log(s, 'The line snaps and the rod is finished.', 'warn');
+  }
+  void x;
+  void y;
+  return caught;
+}
+
+function wormOption(c: Ctx, x: number, y: number): Option[] {
+  const s = c.s;
+  const shovel = hasTool(carried(s), 'shovel');
+  return [{
+    label: `Dig for worms (${shovel ? '10' : '20'} min)`,
+    run: () => startAction(c, {
+      label: 'Digging for worms', dur: 999, gameHours: shovel ? 0.17 : 0.33, ffwd: true, cancelOnMove: true, anim: 'kneel',
+      onDone: () => {
+        const wet = s.weather.rain > 0.1 || s.player.needs.wet > 0.3;
+        const cold = s.weather.temp < 3;
+        const n = cold ? 0 : c.rt.rng.int(0, wet ? 5 : 3);
+        if (n) addItem(s, { kind: 'player' }, makeItem(s, 'worms', { qty: n }), true);
+        addXp(s.player, 'foraging', 1);
+        log(s, n ? `You find ${n} worm${n > 1 ? 's' : ''}.` : cold ? 'The ground is too cold. Nothing.' : 'No worms here.', n ? 'good' : 'info');
+        void x;
+        void y;
+      },
+    }),
+  }];
 }
 
 export function updateCrops(s: GameState, hours: number, raining: number): void {

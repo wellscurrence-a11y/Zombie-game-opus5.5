@@ -20,7 +20,7 @@ const TOOLS: Entry[] = [
   ['twine', 2], ['gasCan', 2], ['shovel', 1.5], ['hatchet', 1], ['axe', 0.5], ['lugwrench', 1], ['jack', 1],
   ['gloves', 2], ['flashlight', 2], ['battery', 3, 1, 4], ['garbageBag', 2, 1, 5], ['scrap', 1.5, 1, 3],
   ['magGenerator', 0.6], ['magHotwire', 0.5], ['magTraps', 0.5], ['extinguisher', 0.7], ['engineParts', 0.7], ['carBattery', 0.3],
-  ['charcoal', 0.8], ['bucket', 1], ['generatorItem', 0.12], ['pipe', 1], ['sledge', 0.2],
+  ['charcoal', 0.8], ['bucket', 1], ['generatorItem', 0.12], ['pipe', 1], ['sledge', 0.2], ['fishingRod', 0.7],
 ];
 const CLOTHES: Entry[] = [
   ['tshirt', 6], ['shirt', 4], ['hoodie', 4], ['sweater', 3], ['denimJacket', 2], ['leatherJacket', 0.7], ['winterCoat', 1.5],
@@ -97,7 +97,7 @@ const TABLES: Record<string, Table> = {
   'barn:hay': T([0, 3], 0.35, [['seedCarrot', 2, 3, 8], ['seedPotato', 2, 3, 6], ['seedTomato', 1, 3, 8], ['seedCabbage', 1, 3, 8], ['twine', 2], ['sheet', 1], ['bucket', 1], ['potato', 2, 1, 3], ['carrot', 2, 1, 3], ['rifle', 0.15], ['ammo308', 0.3, 4, 10]]),
   'barn:workbench': T([1, 4], 0.1, [...TOOLS, ['shovel', 3], ['axe', 1], ['bucket', 2], ['seedPotato', 1, 3, 6]]),
   'barn:crate': T([1, 3], 0.2, [['potato', 3, 2, 5], ['carrot', 3, 2, 5], ['cabbage', 2], ['log', 1, 1, 2], ['plank', 2, 1, 4]]),
-  'cabin:wardrobe': T([1, 4], 0.05, [['rifle', 1.2], ['ammo308', 2, 5, 15], ['winterCoat', 2], ['boots', 2], ['hikingBag', 1.2], ['huntknife', 2], ['axe', 1], ['sweater', 2], ['beanie', 2], ['scarf', 1], ['bookForage1', 1], ['matches', 2], ['flashlight', 1]]),
+  'cabin:wardrobe': T([1, 4], 0.05, [['fishingRod', 2], ['worms', 0.8, 4, 10], ['rifle', 1.2], ['ammo308', 2, 5, 15], ['winterCoat', 2], ['boots', 2], ['hikingBag', 1.2], ['huntknife', 2], ['axe', 1], ['sweater', 2], ['beanie', 2], ['scarf', 1], ['bookForage1', 1], ['matches', 2], ['flashlight', 1]]),
   'cabin:counter': T([1, 3], 0.2, [...CANNED, ['jerky', 3], ['matches', 2], ['lighter', 1], ['pot', 2], ['whiskey', 1], ['purifyTabs', 1, 5, 10], ['canopener', 1.5]]),
   'motelRoom:nightstand': T([0, 2], 0.35, [['comics', 2], ['cigarettes', 2], ['painkillers', 1], ['whiskey', 1], ['pistol', 0.12], ['ammo9', 0.3, 5, 12], ['alarmClock', 1], ['map', 0.5]]),
   'motelRoom:dresser': T([0, 2], 0.35, [['sheet', 3], ['tshirt', 2], ['duffel', 0.8], ['jeans', 1], ['hoodie', 1]]),

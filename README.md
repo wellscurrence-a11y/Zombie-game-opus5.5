@@ -106,6 +106,15 @@ surround a stopped car, break the glass, reach in, and with enough hands drag yo
 off but not the cold unless the engine (and its noise) runs. Fuel can be siphoned or pumped while the
 power lasts.
 
+**Living off the land.** Fish at the river with a rod (found in sheds, garages and cabins, or made from
+a branch, twine and a bent nail); worms dug from soft ground make fish bite far more often, and dawn,
+dusk and light rain help. Raw fish and meat rot within a day or two: cook them, turn three ingredients
+and a pot of water into a stew or fish soup over a fire, or smoke them into jerky that keeps. Duct tape
+patches worn weapons (each patch helps less), nails make a nail bat or a spiked plank, and a home-made
+bow with whittled arrows is weak but almost silent — about half the arrows can be picked up again.
+
+All zombies are the same kind: slow, relentless, equally tough. No runners, no specials.
+
 **Base building.** Lock doors, barricade doors and windows, hang sheets over windows, move furniture,
 build wooden/log/metal walls and gates, crates, rain collectors, tin-can alarm lines, sleeping bags,
 campfires. Repair what the dead damage. Nothing is perfectly safe.

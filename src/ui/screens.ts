@@ -261,6 +261,8 @@ export function helpScreen(root: HTMLElement, onClose: () => void): HTMLElement 
     <div class="note">Lock doors, close curtains, board windows. Sleep somewhere secured.</div>
     <div class="note">The power and water will fail. Store water. A generator must run outdoors.</div>
     <div class="note">Every extra room you search is more noise and more time. Know when to leave.</div>
+    <div class="note">Food runs out. Fish at the river (a rod, worms dug from soft ground for bait), smoke meat and fish into jerky over a campfire, and cook stews in a pot of water to stretch what you have.</div>
+    <div class="note">Weapons wear out: tape them up. Nails turn a bat or a plank into something better. A home-made bow is weak, but nobody hears it.</div>
     <div class="note">A car is not a shelter. The dead break the glass, reach in and drag you out. Keep moving.</div>
     <div class="note">Chromebook trackpad: tap with two fingers (or Alt + click) to right-click. If it's slow, set Graphics to Low in Settings.</div>
   </div></div>

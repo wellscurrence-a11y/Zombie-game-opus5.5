@@ -301,15 +301,15 @@ export function renderSkills(g: Game): string {
 // ------------------------------------------------------------------ craft & build
 
 export function renderCraft(g: Game): string {
-  const rec = RECIPES.map((r) => {
-    const why = recipeStatus(g, r);
+  // what you can make right now first, then everything else in the usual order
+  const rec = RECIPES.map((r) => ({ r, why: recipeStatus(g, r) })).sort((a, b) => (a.why ? 1 : 0) - (b.why ? 1 : 0)).map(({ r, why }) => {
     return `<div class="recipe"><div><div>${esc(r.name)}</div><div class="d">${r.needs.map(([id, q]) => `${q}× ${def(id).name}`).join(', ')}${r.tools?.length ? ' · tools: ' + r.tools.map((t) => t.replace('#', '')).join(', ') : ''}</div><div class="d">${esc(r.desc)}</div>${why ? `<div class="why">${esc(why)}</div>` : ''}</div><button data-act="craft" data-id="${r.id}" ${why ? 'disabled' : ''}>Make</button></div>`;
   }).join('');
   const b = BUILDS.map((r) => {
     const why = buildStatus(g, r);
     return `<div class="recipe"><div><div>${esc(r.name)}</div><div class="d">${r.needs.map(([id, q]) => `${q}× ${def(id).name}`).join(', ')}${r.tools.length ? ' · ' + r.tools.join(', ') : ''}</div><div class="d">${esc(r.desc)}</div>${why ? `<div class="why">${esc(why)}</div>` : ''}</div><button data-act="build" data-id="${r.id}" ${why ? 'disabled' : ''}>Place</button></div>`;
   }).join('');
-  return `<div class="cols"><div class="col"><h3>Crafting</h3>${rec}</div><div class="col"><h3>Building</h3>${b}<p class="dim" style="font-size:11px">Barricade doors and windows from their right-click menu (hammer, planks, nails). Hammering is loud — heard for more than a block. Build campfires from the ground menu.</p></div></div>`;
+  return `<div class="cols"><div class="col"><h3>Crafting</h3>${rec}</div><div class="col"><h3>Building</h3>${b}<p class="dim" style="font-size:11px">Barricade doors and windows from their right-click menu (hammer, planks, nails). Hammering is loud — heard for more than a block. Build campfires, dig for worms and fish from the ground menu; cook stews and smoke jerky from a lit fire's menu.</p></div></div>`;
 }
 
 export function handleCraftClick(g: Game, t: HTMLElement, close: () => void): void {

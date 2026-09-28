@@ -43,6 +43,8 @@ export interface FirearmStats {
   reload: number;
   rate: number;
   pellets: number;
+  /** A bow: quiet, no muzzle flash, and arrows can often be recovered. */
+  bow?: boolean;
 }
 
 export interface ItemDef {
@@ -127,7 +129,9 @@ food('pasta', 'Box of pasta', 0.5, { hunger: 0.4, needsCooking: true, poison: 0 
 food('berries', 'Wild berries', 0.1, { hunger: 0.05, spoil: 3, poison: 0.3 }, 'Unidentified. Some wild berries are poisonous.');
 food('mushrooms', 'Wild mushrooms', 0.1, { hunger: 0.05, spoil: 3, poison: 0.35 }, 'Unidentified. Some mushrooms are deadly.');
 food('mre', 'Military ration', 0.6, { hunger: 0.45 });
-food('stew', 'Pot of stew', 1.5, { hunger: 0.55, thirst: 0.1, stress: -0.08, spoil: 2 });
+food('stew', 'Pot of stew', 1.5, { hunger: 0.55, thirst: 0.1, stress: -0.08, spoil: 2 }, 'Hot food stretches ingredients further — and lifts the mood.');
+food('fish', 'Raw fish', 0.5, { hunger: 0.22, spoil: 1.5, needsCooking: true, poison: 0.45 }, 'Cook it first. Spoils fast.');
+food('fishSoup', 'Pot of fish soup', 1.5, { hunger: 0.5, thirst: 0.15, stress: -0.06, spoil: 2 }, 'Hot, filling, and a little water besides.');
 
 // ---------------------------------------------------------------- drinks
 add({ id: 'soda', name: 'Can of soda', weight: 0.35, cat: 'drink', food: { hunger: 0.02, thirst: 0.22, stress: -0.02, leaves: 'emptyCan' } });
@@ -189,6 +193,8 @@ W('golfclub', 'Golf club', 0.9, { dmg: 0.65, reach: 1.35, swing: 0.8, dur: 50, k
 W('baton', 'Police baton', 0.6, { dmg: 0.6, reach: 1.1, swing: 0.58, dur: 260, knock: 0.35, noise: 7 });
 W('screwdriver', 'Screwdriver', 0.2, { dmg: 0.4, reach: 0.85, swing: 0.45, dur: 30, knock: 0.02, crit: 0.25, skill: 'blade', noise: 3, stab: true, stam: 0.012 }, { tools: ['screwdriver'] });
 W('spear', 'Crafted spear', 1.2, { dmg: 0.85, reach: 1.75, swing: 0.85, dur: 45, knock: 0.15, crit: 0.2, twoHanded: true, skill: 'blade', noise: 5, stab: true }, { desc: 'Long reach keeps them at a distance.' });
+W('nailbat', 'Nail bat', 1.2, { dmg: 1.15, reach: 1.35, swing: 0.88, dur: 100, knock: 0.5, crit: 0.22, twoHanded: true, noise: 8, arc: 2, stam: 0.034 }, { desc: 'A bat studded with nails. Ugly, and it works.' });
+W('nailplank', 'Spiked plank', 1.3, { dmg: 0.7, reach: 1.3, swing: 0.82, dur: 35, knock: 0.35, crit: 0.18, twoHanded: true, noise: 7 }, { desc: 'Nails hammered through a plank. Better than nothing.' });
 W('branch', 'Tree branch', 0.8, { dmg: 0.35, reach: 1.2, swing: 0.75, dur: 12, knock: 0.3, twoHanded: true, noise: 6 }, { fuelValue: 1 });
 
 // ---------------------------------------------------------------- firearms
@@ -198,6 +204,8 @@ F('pistol', '9mm pistol', 1.0, { dmg: 2.2, range: 16, noise: 48, ammo: 'ammo9', 
 F('revolver', '.38 revolver', 1.1, { dmg: 2.7, range: 15, noise: 52, ammo: 'ammo38', mag: 6, spread: 0.06, reload: 3.0, rate: 0.5, pellets: 1 }, 'Every shot is heard for blocks around.');
 F('shotgun', 'Pump shotgun', 3.4, { dmg: 0.9, range: 9, noise: 62, ammo: 'shells', mag: 6, spread: 0.2, reload: 4.0, rate: 0.95, pellets: 7 }, 'Devastating up close. Unbelievably loud.');
 F('rifle', 'Hunting rifle', 3.8, { dmg: 4.5, range: 30, noise: 70, ammo: 'ammo308', mag: 5, spread: 0.025, reload: 3.4, rate: 1.3, pellets: 1 }, 'Accurate at range. Every zombie for half a mile will hear it.');
+F('bow', 'Improvised bow', 1.0, { dmg: 1.6, range: 14, noise: 3, ammo: 'arrow', mag: 1, spread: 0.06, reload: 1.1, rate: 0.6, pellets: 1, bow: true }, 'Quiet. Hold to draw and aim, release to loose. Arrows can often be picked up again.');
+add({ id: 'arrow', name: 'Arrows', weight: 0.05, cat: 'ammo', stack: 30, desc: 'Whittled shafts with nail tips.' });
 add({ id: 'ammo9', name: '9mm rounds', weight: 0.012, cat: 'ammo', stack: 100 });
 add({ id: 'ammo38', name: '.38 rounds', weight: 0.013, cat: 'ammo', stack: 100 });
 add({ id: 'shells', name: 'Shotgun shells', weight: 0.04, cat: 'ammo', stack: 50 });
@@ -215,7 +223,7 @@ add({ id: 'lugwrench', name: 'Lug wrench', weight: 1.0, cat: 'tool', tools: ['lu
 add({ id: 'nails', name: 'Nails', weight: 0.01, cat: 'material', stack: 200 });
 add({ id: 'log', name: 'Log', weight: 6.0, cat: 'material', fuelValue: 5, stack: 4 });
 add({ id: 'sheet', name: 'Bed sheet', weight: 0.5, cat: 'material', fuelValue: 0.4, desc: 'Hang over a window as a curtain, or rip into rags.' });
-add({ id: 'ducttape', name: 'Duct tape', weight: 0.2, cat: 'material', uses: 10 });
+add({ id: 'ducttape', name: 'Duct tape', weight: 0.2, cat: 'material', uses: 10, desc: 'Patches up a worn weapon (open the weapon\'s menu). Each patch helps a little less.' });
 add({ id: 'garbageBag', name: 'Garbage bag', weight: 0.05, cat: 'material', stack: 20 });
 add({ id: 'scrap', name: 'Scrap metal', weight: 1.0, cat: 'material', stack: 10 });
 add({ id: 'twine', name: 'Twine', weight: 0.1, cat: 'material', uses: 4 });
@@ -223,6 +231,9 @@ add({ id: 'engineParts', name: 'Engine parts', weight: 2.0, cat: 'part', stack: 
 add({ id: 'carBattery', name: 'Car battery', weight: 14.0, cat: 'part' });
 add({ id: 'tire', name: 'Spare tire', weight: 10.0, cat: 'part' });
 add({ id: 'extinguisher', name: 'Fire extinguisher', weight: 4.5, cat: 'tool', uses: 6, tools: ['extinguisher'] });
+add({ id: 'fishingRod', name: 'Fishing rod', weight: 0.9, cat: 'tool', tools: ['fishing'], desc: 'Fish from a riverbank. Quiet, slow, and it feeds you. Bait helps.' });
+add({ id: 'rodImprov', name: 'Improvised fishing rod', weight: 0.7, cat: 'tool', tools: ['fishing'], desc: 'A branch, twine and a bent nail. Catches less and breaks sooner.' });
+add({ id: 'worms', name: 'Worms', weight: 0.02, cat: 'material', stack: 30, desc: 'Bait. Fish bite far more often. Dig for them in soft ground, best after rain.' });
 add({ id: 'stick', name: 'Twigs', weight: 0.2, cat: 'material', fuelValue: 0.4, stack: 10 });
 add({ id: 'charcoal', name: 'Bag of charcoal', weight: 3.0, cat: 'material', fuelValue: 6 });
 add({ id: 'newspaper', name: 'Newspaper', weight: 0.2, cat: 'misc', fuelValue: 0.3, desc: 'Yesterday\'s headlines: "RIOTS SPREAD — AUTHORITIES URGE CALM".' });
@@ -334,6 +345,8 @@ export interface Item {
   timer?: number;
   /** Cooking progress (1 = cooked, 1.6 = burnt). */
   heat?: number;
+  /** Times patched up with duct tape (each patch helps less). */
+  repairs?: number;
 }
 
 export interface UidSource {

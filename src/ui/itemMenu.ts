@@ -3,7 +3,7 @@ import type { Game } from '../game';
 import { def, type Item } from '../sim/items';
 import { addItem, dropItem, locate, transfer, type ContRef } from '../sim/inventory';
 import { log } from '../sim/log';
-import { canOpeners, describe, drinkFrom, eat, equip, insertBattery, pourOut, purify, read, smoke, takePill, wear } from '../sim/use';
+import { canOpeners, describe, drinkFrom, eat, equip, insertBattery, pourOut, purify, read, repairWithTape, smoke, takePill, tapeRepairAmount, wear } from '../sim/use';
 import { heldItem } from '../sim/stats';
 
 export interface MenuItem {
@@ -52,6 +52,11 @@ export function itemActions(g: Game, it: Item, where: ContRef): MenuItem[] {
   if (d.weapon || d.firearm || d.light || d.tools) {
     const held = heldItem(p)?.uid === it.uid;
     if (d.weapon || d.firearm) out.push({ label: held ? 'Unequip' : 'Equip (hold)', run: () => equip(g, it.uid) });
+    if (d.weapon && mine && it.cond < 0.97) {
+      const tape = s.player.inventory.concat(p.bag?.contents ?? []).some((i) => i.id === 'ducttape' && (i.usesLeft ?? 0) > 0);
+      const gain = tapeRepairAmount(it);
+      out.push({ label: `Repair with duct tape (+${Math.round(gain * 100)}%)`, enabled: tape && gain >= 0.02, reason: !tape ? 'Need duct tape' : 'Tape won\'t help any more', run: () => repairWithTape(g, it.uid) });
+    }
     if (d.firearm && (it.ammo ?? 0) > 0) out.push({ label: `Unload (${it.ammo})`, run: () => {
       const n = it.ammo ?? 0;
       it.ammo = 0;
