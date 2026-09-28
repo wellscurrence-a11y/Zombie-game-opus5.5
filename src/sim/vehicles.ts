@@ -340,7 +340,7 @@ export function enterVehicle(c: Ctx, v: Vehicle): void {
     return;
   }
   startAction(c, {
-    label: 'Getting in', dur: 1, cancelOnMove: true, anim: 'use',
+    label: 'Getting in', urgent: true, dur: 1, cancelOnMove: true, anim: 'use',
     onDone: () => {
       p.inVehicle = v.id;
       p.stance = 'stand';
@@ -454,7 +454,7 @@ export function startEngine(c: Ctx): void {
     return;
   }
   startAction(c, {
-    label: 'Turning the key', dur: 1.3, cancelOnMove: false, anim: 'use',
+    label: 'Turning the key', urgent: true, dur: 1.3, cancelOnMove: false, anim: 'use',
     onDone: () => {
       if (v.battery < 0.08) {
         log(s, 'Nothing. The battery is dead.', 'warn');
@@ -494,7 +494,7 @@ export function hotwire(c: Ctx): void {
     return;
   }
   startAction(c, {
-    label: 'Hotwiring', dur: 12, cancelOnMove: false, anim: 'work',
+    label: 'Hotwiring', urgent: true, dur: 12, cancelOnMove: false, anim: 'work',
     onDone: () => {
       if (c.rt.rng.chance(0.45 + lvl(p, 'electrical') * 0.1)) {
         v.hotwired = true;

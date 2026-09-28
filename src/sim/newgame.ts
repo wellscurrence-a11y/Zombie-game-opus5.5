@@ -34,7 +34,7 @@ export function blankBody(): Body {
 export function blankNeeds(): Needs {
   return {
     hunger: 0.12, thirst: 0.1, fatigue: 0.15, endurance: 1, temp: 37, wet: 0, stress: 0.15, panic: 0, sick: 0, sickCause: '',
-    cold: 0, drunk: 0, painkiller: 0, calm: 0, antibiotic: 0, co: 0, craving: 0, boredom: 0,
+    cold: 0, drunk: 0, painkiller: 0, calm: 0, antibiotic: 0, co: 0, craving: 0, boredom: 0, unhappy: 0,
   };
 }
 

@@ -3,7 +3,7 @@ import type { Game } from '../game';
 import { def, type Item } from '../sim/items';
 import { addItem, dropItem, locate, transfer, type ContRef } from '../sim/inventory';
 import { log } from '../sim/log';
-import { canOpeners, describe, drinkFrom, eat, equip, insertBattery, pourOut, purify, read, repairWithTape, smoke, takePill, tapeRepairAmount, wear } from '../sim/use';
+import { canOpeners, describe, doCrossword, drinkFrom, eat, equip, insertBattery, listenRadio, playCards, pourOut, purify, read, repairWithTape, smoke, takePill, tapeRepairAmount, wear } from '../sim/use';
 import { heldItem } from '../sim/stats';
 
 export interface MenuItem {
@@ -101,7 +101,9 @@ export function itemActions(g: Game, it: Item, where: ContRef): MenuItem[] {
       g.beginThrow(it.uid);
     } });
   }
-  if (it.id === 'radio') out.push({ label: 'Listen (broadcasts come in while you carry it)', run: () => log(s, s.time < s.util.radioEndsAt ? 'You tune in. Broadcasts will appear in your log.' : 'Static. Nobody is broadcasting anymore.', 'radio') });
+  if (it.id === 'radio' && mine) out.push({ label: 'Listen for a while (30 min, eases boredom)', run: () => listenRadio(g, it.uid) });
+  if (it.id === 'cards' && mine) out.push({ label: 'Play solitaire (1 h)', run: () => playCards(g, it.uid) });
+  if (it.id === 'crossword' && mine) out.push({ label: `Do a crossword (45 min, ${it.usesLeft ?? 0} left)`, run: () => doCrossword(g, it.uid) });
   if (it.id === 'watch') out.push({ label: 'Check the time', run: () => log(s, 'Keep it on you and the exact time shows in the corner.', 'info') });
   if (mine) out.push({ label: 'Drop', run: () => dropItem(s, g.rt, it.uid, locate(s, it.uid) ?? where) });
   if (mine && where.kind === 'player' && p.bag) out.push({ label: 'Put in bag', run: () => {

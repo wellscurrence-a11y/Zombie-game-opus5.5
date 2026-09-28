@@ -407,6 +407,7 @@ export function vitalsHtml(g: Game): string {
   const water = 1 - n.thirst;
   const rest = 1 - n.fatigue;
   const temp = n.temp;
+  const mood = 1 - Math.max(n.unhappy ?? 0, (n.boredom ?? 0) * 0.8);
   const tCls = temp < 35.3 || temp > 39 ? 'bad' : temp < 36.2 ? 'cold' : temp > 37.9 ? 'warn' : 'good';
   const tFrac = (temp - 34) / 6;
   return row('Health', hp, pct(hp), tone(hp), 'Overall health. Wounds, blood loss, infection, hunger and thirst wear it down.')
@@ -414,5 +415,6 @@ export function vitalsHtml(g: Game): string {
     + row('Water', water, pct(water), tone(water), 'Hydration. Drops faster when running or in the heat. Dehydration kills within days.')
     + row('Rest', rest, pct(rest), tone(rest), 'How rested you are. Tiredness slows your swings and blurs your eyes. Sleep somewhere safe.')
     + row('Stamina', n.endurance, pct(n.endurance), tone(n.endurance), 'Short-term breath. Running, fighting and climbing use it up.')
+    + row('Mood', mood, pct(mood), tone(mood), 'Boredom and unhappiness. Sitting indoors with nothing to do wears it down; getting outside, keeping busy and small pleasures bring it back.')
     + row('Body', tFrac, `${temp.toFixed(1)}°`, tCls, 'Body temperature. Normal is about 37°C. Wet clothes, wind and cold nights pull it down.');
 }

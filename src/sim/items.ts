@@ -63,6 +63,8 @@ export interface ItemDef {
     /** Chance of food poisoning if eaten raw/unsafe. */
     poison?: number;
     stress?: number;
+    /** Positive: a treat that eases boredom and unhappiness. Negative: bland or grim food that adds to them. */
+    fun?: number;
     canned?: boolean;
     /** Leaves an empty can behind. */
     leaves?: string;
@@ -285,7 +287,9 @@ add({ id: 'map', name: 'Map of Cedar Hollow', weight: 0.05, cat: 'misc', desc: '
 add({ id: 'houseKey', name: 'House key', weight: 0.02, cat: 'key' });
 add({ id: 'carKey', name: 'Car key', weight: 0.02, cat: 'key' });
 add({ id: 'cigarettes', name: 'Cigarettes', weight: 0.05, cat: 'misc', uses: 20, desc: 'Calms a smoker. Needs a lighter.' });
-add({ id: 'comics', name: 'Comic book', weight: 0.1, cat: 'misc', desc: 'Reading relieves stress.' });
+add({ id: 'comics', name: 'Comic book', weight: 0.1, cat: 'misc', desc: 'Kills an hour of boredom and eases stress. Rereading the same one does less.' });
+add({ id: 'cards', name: 'Deck of cards', weight: 0.1, cat: 'misc', desc: 'Solitaire passes the time. Play it too often and it gets old.' });
+add({ id: 'crossword', name: 'Crossword book', weight: 0.2, cat: 'misc', uses: 8, desc: 'Eight puzzles to keep your mind busy.' });
 add({ id: 'alarmClock', name: 'Alarm clock', weight: 0.4, cat: 'misc', throwNoise: 5, desc: 'Set it and drop it: it rings loudly after a delay. A distraction.' });
 add({ id: 'molotov', name: 'Molotov cocktail', weight: 0.6, cat: 'misc', throwNoise: 15, desc: 'Throw to start a fire. Fires spread. Choose your target carefully.' });
 
@@ -311,6 +315,16 @@ add({ id: 'seedTomato', name: 'Tomato seeds', weight: 0.02, cat: 'seed', seed: '
 add({ id: 'seedCabbage', name: 'Cabbage seeds', weight: 0.02, cat: 'seed', seed: 'cabbage', stack: 10 });
 
 export const ITEMS: Record<string, ItemDef> = Object.fromEntries(defs.map((d) => [d.id, d]));
+
+/** How much each food lifts (or sinks) the mood. Treats and hot meals help; bland rations and dog food don't. */
+const FOOD_FUN: Record<string, number> = {
+  chocolate: 0.15, chips: 0.1, peaches: 0.08, soda: 0.08, juice: 0.05, beer: 0.12, stew: 0.18, fishSoup: 0.15,
+  cheese: 0.05, pbutter: 0.04, apple: 0.03, banana: 0.03, orange: 0.03, bread: 0.03, chili: 0.02, jerky: 0.02, cereal: 0.02,
+  steak: 0.08, chicken: 0.06, fish: 0.05, milk: 0.02,
+  beans: -0.03, tuna: -0.03, crackers: -0.02, mre: -0.05, soup: 0, granola: 0, carrot: -0.02, potato: -0.03, cabbage: -0.03,
+  rice: -0.02, pasta: -0.02, dogfood: -0.25, berries: 0.02, mushrooms: 0,
+};
+for (const [id, f] of Object.entries(FOOD_FUN)) if (ITEMS[id]?.food) ITEMS[id].food!.fun = f;
 
 export function def(id: string): ItemDef {
   const d = ITEMS[id];
@@ -347,6 +361,8 @@ export interface Item {
   heat?: number;
   /** Times patched up with duct tape (each patch helps less). */
   repairs?: number;
+  /** Times this comic or paper has been read. */
+  reads?: number;
 }
 
 export interface UidSource {

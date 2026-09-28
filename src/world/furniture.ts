@@ -57,7 +57,7 @@ export const FURN: Record<FurnKind, FurnDef> = {
   dresser: D({ name: 'Dresser', h: 1.0, weight: 30, container: { kind: 'dresser', cap: 20 }, vault: true, hp: 80 }),
   nightstand: D({ name: 'Nightstand', h: 0.6, weight: 8, container: { kind: 'nightstand', cap: 5 }, hp: 30 }),
   bookshelf: D({ name: 'Bookshelf', h: 1.9, tall: true, weight: 35, container: { kind: 'bookshelf', cap: 18 }, hp: 70 }),
-  tv: D({ name: 'TV stand', h: 1.0, weight: 20, hp: 40, vault: true }),
+  tv: D({ name: 'Television', h: 1.0, weight: 20, hp: 40, vault: true }),
   desk: D({ name: 'Desk', h: 0.75, weight: 30, container: { kind: 'desk', cap: 10 }, vault: true, hp: 60 }),
   filing: D({ name: 'Filing cabinet', h: 1.3, weight: 40, container: { kind: 'filing', cap: 15 }, flammable: 0.1, hp: 120 }),
   shelf: D({ name: 'Store shelf', h: 1.6, tall: true, weight: 0, container: { kind: 'shelf', cap: 40 }, hp: 100 }),

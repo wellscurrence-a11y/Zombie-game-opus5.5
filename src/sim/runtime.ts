@@ -49,6 +49,10 @@ export interface TimedAction {
   ffwd?: boolean;
   /** Game-time based duration (hours) rather than real seconds. */
   gameHours?: number;
+  /** An amusement: relieves boredom and is never slowed by a low mood. */
+  fun?: boolean;
+  /** Urgent (first aid, getting into a car): never slowed by a low mood. */
+  urgent?: boolean;
   startT?: number;
 }
 

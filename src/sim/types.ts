@@ -72,7 +72,10 @@ export interface Needs {
   co: number;
   /** Smoker craving 0..1. */
   craving: number;
+  /** 0..1: rises sitting indoors with nothing to do, falls outside, busy or entertained. */
   boredom: number;
+  /** 0..1: lasting boredom and misery wear you down. */
+  unhappy: number;
 }
 
 export type Stance = 'stand' | 'crouch';
@@ -134,6 +137,8 @@ export interface Player {
   /** Carried furniture (id) while moving furniture. */
   carrying: number;
   readingUid: number;
+  /** Recent uses of each kind of amusement (repeats count for less). */
+  funUsed?: Record<string, number>;
 }
 
 export type ZState =

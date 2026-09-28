@@ -48,6 +48,7 @@ export function treatments(c: Ctx, inj: Injury): Treatment[] {
     out.push({
       id: 'glass', label: tw ? 'Remove glass (tweezers)' : 'Dig out glass (fingers)', enabled: true,
       run: () => startAction(c, {
+          urgent: true,
         label: `Removing glass from ${name}`, dur: medTime(c, tw ? 6 : 10, inj), cancelOnMove: true, anim: 'kneel',
         onDone: () => {
           inj.glass = false;
@@ -68,6 +69,7 @@ export function treatments(c: Ctx, inj: Injury): Treatment[] {
       run: () => {
         if (!dis) return;
         startAction(c, {
+          urgent: true,
           label: `Disinfecting ${name}`, dur: medTime(c, 3, inj), cancelOnMove: true, anim: 'kneel',
           onDone: () => {
             inj.disinfected = true;
@@ -92,6 +94,7 @@ export function treatments(c: Ctx, inj: Injury): Treatment[] {
       run: () => {
         if (!b) return;
         startAction(c, {
+          urgent: true,
           label: `Bandaging ${name}`, dur: medTime(c, 4.5, inj), cancelOnMove: true, anim: 'kneel',
           onDone: () => {
             inj.bandaged = true;
@@ -112,6 +115,7 @@ export function treatments(c: Ctx, inj: Injury): Treatment[] {
       run: () => {
         if (!kit) return;
         startAction(c, {
+          urgent: true,
           label: `Stitching ${name}`, dur: medTime(c, 14, inj), cancelOnMove: true, anim: 'kneel',
           onDone: () => {
             useCharge(s, kit);
@@ -137,6 +141,7 @@ export function treatments(c: Ctx, inj: Injury): Treatment[] {
       run: () => {
         if (!sp) return;
         startAction(c, {
+          urgent: true,
           label: `Splinting ${name}`, dur: medTime(c, 9, inj), cancelOnMove: true, anim: 'kneel',
           onDone: () => {
             inj.splinted = true;

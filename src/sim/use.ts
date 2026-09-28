@@ -10,6 +10,7 @@ import { addXp, lvl } from './skills';
 import { handFactor } from './stats';
 import { hasTrait } from './traits';
 import type { GameState } from './types';
+import { cheer, useFun, workMult } from './mood';
 
 export interface Ctx {
   s: GameState;
@@ -22,6 +23,12 @@ export function startAction(c: Ctx, a: Omit<TimedAction, 't'> & { t?: number }):
     rt.action.onCancel?.();
   }
   rt.action = { t: 0, ...a };
+  // an unhappy survivor drags their feet through chores (never through first aid, eating or play)
+  if (!a.fun && !a.urgent && a.anim !== 'eat' && a.anim !== 'climb' && a.anim !== 'none') {
+    const m = workMult(c.s.player);
+    if (a.gameHours) rt.action.gameHours = a.gameHours * m;
+    else if (a.dur < 900) rt.action.dur = a.dur * m;
+  }
   if (a.gameHours) rt.action.startT = c.s.time;
 }
 
@@ -191,6 +198,12 @@ export function eat(c: Ctx, uid: number, method: 'opener' | 'knife' | 'blunt' | 
       n.hunger = clamp(n.hunger - f.hunger * mult, 0, 1);
       if (f.thirst) n.thirst = clamp(n.thirst - f.thirst, 0, 1);
       if (f.stress) n.stress = clamp(n.stress + f.stress, 0, 1);
+      // treats and hot meals lift the mood; bland, stale or grim food drags it down
+      let fun = (f.fun ?? 0) * mult + (it.cooked && !it.burnt ? 0.04 : 0);
+      if (fr === 'stale') fun -= 0.05;
+      if (fr === 'rotten') fun -= 0.15;
+      if (it.burnt) fun -= 0.05;
+      if (fun) cheer(p, fun, fun * 0.5);
       if (f.drunk) n.drunk = clamp(n.drunk + f.drunk, 0, 1);
       if (it.cooked && !it.burnt) n.stress = clamp(n.stress - 0.04, 0, 1);
       // food safety
@@ -229,6 +242,7 @@ export function drinkFrom(c: Ctx, uid: number): void {
       if (it.liquid === 'alcohol') {
         n.drunk = clamp(n.drunk + want * 1.2, 0, 1);
         n.stress = clamp(n.stress - 0.1, 0, 1);
+        cheer(p, 0.12 * useFun(p, 'drink'), 0.08);
         n.thirst = clamp(n.thirst - want * 0.3, 0, 1);
       } else {
         n.thirst = clamp(n.thirst - want * 1.25, 0, 1);
@@ -360,6 +374,88 @@ export function smoke(c: Ctx, uid: number): void {
       useCharge(s, light);
       p.needs.craving = 0;
       p.needs.stress = clamp(p.needs.stress - (hasTrait(p.traits, 'smoker') ? 0.25 : 0.05), 0, 1);
+      if (hasTrait(p.traits, 'smoker')) cheer(p, 0.05, 0.08);
+    },
+  });
+}
+
+// ------------------------------------------------------------------ passing the time
+
+function tooTense(c: Ctx): boolean {
+  if (c.rt.threat > 0 || c.rt.closestZombie < 8) {
+    log(c.s, 'Not with them this close.', 'warn');
+    return true;
+  }
+  return false;
+}
+
+export function playCards(c: Ctx, uid: number): void {
+  const s = c.s;
+  const p = s.player;
+  if (!carried(s).some((i) => i.uid === uid) || tooTense(c)) return;
+  startAction(c, {
+    label: 'Playing solitaire', dur: 999, gameHours: 1, ffwd: true, cancelOnMove: true, anim: 'use', fun: true,
+    onDone: () => {
+      const k = useFun(p, 'cards');
+      cheer(p, 0.35 * k, 0.1 * k);
+      log(s, k > 0.7 ? 'A few hands of solitaire. The hour slips by.' : 'Solitaire again. You know every card by now.', k > 0.7 ? 'good' : 'info');
+    },
+  });
+}
+
+export function doCrossword(c: Ctx, uid: number): void {
+  const s = c.s;
+  const p = s.player;
+  const book = carried(s).find((i) => i.uid === uid);
+  if (!book || tooTense(c)) return;
+  startAction(c, {
+    label: 'Doing a crossword', dur: 999, gameHours: 0.75, ffwd: true, cancelOnMove: true, anim: 'read', fun: true,
+    onDone: () => {
+      const k = useFun(p, 'crossword');
+      cheer(p, 0.35 * k, 0.1 * k);
+      const left = (book.usesLeft ?? 1) - 1;
+      useCharge(s, book);
+      log(s, left > 0 ? `Puzzle solved. ${left} left in the book.` : 'The last puzzle in the book.', 'good');
+    },
+  });
+}
+
+export function listenRadio(c: Ctx, uid: number): void {
+  const s = c.s;
+  const p = s.player;
+  if (!carried(s).some((i) => i.uid === uid) || tooTense(c)) return;
+  if (s.time >= s.util.radioEndsAt) {
+    log(s, 'Nothing but static on every station.', 'info');
+    return;
+  }
+  startAction(c, {
+    label: 'Listening to the radio', dur: 999, gameHours: 0.5, ffwd: true, cancelOnMove: true, anim: 'use', fun: true,
+    noise: { radius: 4, every: 3, acc: 0, kind: 'radio' },
+    onDone: () => {
+      const k = useFun(p, 'radio');
+      cheer(p, 0.2 * k, 0.06 * k);
+      log(s, 'A tired voice reads the same list of shelters, then music. For a while it almost feels normal.', 'radio');
+    },
+  });
+}
+
+/** Television while the power lasts: the best distraction there is, and loud enough to be heard outside. */
+export function watchTV(c: Ctx, powered: boolean): void {
+  const s = c.s;
+  const p = s.player;
+  if (tooTense(c)) return;
+  if (!powered) {
+    log(s, 'The screen stays dark. No power.', 'info');
+    return;
+  }
+  startAction(c, {
+    label: 'Watching TV', dur: 999, gameHours: 1, ffwd: true, cancelOnMove: true, anim: 'use', fun: true,
+    noise: { radius: 7, every: 2.5, acc: 0, kind: 'tv' },
+    onDone: () => {
+      const k = useFun(p, 'tv');
+      cheer(p, 0.45 * k, 0.12 * k);
+      const shows = ['Reruns of a cooking show, between emergency bulletins.', 'A cartoon marathon. Nobody is running the station anymore.', 'The emergency broadcast loops. Then an old movie.'];
+      log(s, shows[c.rt.rng.int(0, shows.length - 1)], 'good');
     },
   });
 }
@@ -384,7 +480,7 @@ export function read(c: Ctx, uid: number): void {
       label: `Reading ${d.name}`, dur: 999, gameHours: d.book.hours, ffwd: true, cancelOnMove: true, anim: 'read',
       onDone: () => {
         p.bookBoost[d.book!.skill] = Math.max(p.bookBoost[d.book!.skill] ?? 0, d.book!.maxLevel);
-        p.needs.boredom = 0;
+        cheer(p, 0.3, 0.06);
         p.needs.stress = clamp(p.needs.stress - 0.1, 0, 1);
         log(s, `Finished ${d.name}. You'll learn ${d.book!.skill} much faster now.`, 'good');
       },
@@ -402,12 +498,17 @@ export function read(c: Ctx, uid: number): void {
       },
     });
   } else if (it.id === 'comics' || it.id === 'newspaper') {
+    const comic = it.id === 'comics';
     startAction(c, {
-      label: `Reading ${d.name.toLowerCase()}`, dur: 999, gameHours: 0.6, ffwd: true, cancelOnMove: true, anim: 'read',
+      label: `Reading ${d.name.toLowerCase()}`, dur: 999, gameHours: comic ? 1 : 0.5, ffwd: true, cancelOnMove: true, anim: 'read', fun: true,
       onDone: () => {
-        p.needs.stress = clamp(p.needs.stress - 0.15, 0, 1);
-        p.needs.boredom = 0;
-        log(s, 'That took your mind off things for a while.', 'good');
+        // you only laugh at the same comic once
+        const fresh = (it.reads ?? 0) === 0 ? 1 : 0.25;
+        it.reads = (it.reads ?? 0) + 1;
+        const k = fresh * useFun(p, 'reading');
+        p.needs.stress = clamp(p.needs.stress - (comic ? 0.15 : 0.05) * k, 0, 1);
+        cheer(p, (comic ? 0.4 : 0.15) * k, (comic ? 0.15 : 0.03) * k);
+        log(s, fresh < 1 ? 'You\'ve read this one before. It helps a little.' : comic ? 'That took your mind off things for a while.' : 'Old news, but it passed the time.', 'good');
       },
     });
   } else if (it.id === 'map') {

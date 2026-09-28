@@ -261,6 +261,7 @@ export function helpScreen(root: HTMLElement, onClose: () => void): HTMLElement 
     <div class="note">Lock doors, close curtains, board windows. Sleep somewhere secured.</div>
     <div class="note">The power and water will fail. Store water. A generator must run outdoors.</div>
     <div class="note">Every extra room you search is more noise and more time. Know when to leave.</div>
+    <div class="note">You can't hole up forever. Sitting indoors with nothing to do bores you, and lasting boredom makes you unhappy: chores drag, you stop learning, and you pace, mutter and cry where the dead can hear. Get outside, keep busy, read comics, play cards, do crosswords, watch TV while the power lasts, listen to the radio, eat something good. The same pastime gets old if you repeat it.</div>
     <div class="note">Food runs out. Fish at the river (a rod, worms dug from soft ground for bait), smoke meat and fish into jerky over a campfire, and cook stews in a pot of water to stretch what you have.</div>
     <div class="note">Weapons wear out: tape them up. Nails turn a bat or a plank into something better. A home-made bow is weak, but nobody hears it.</div>
     <div class="note">A car is not a shelter. The dead break the glass, reach in and drag you out. Keep moving.</div>

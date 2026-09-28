@@ -5,6 +5,7 @@ import { ambient, tileLight } from './lighting';
 import type { Runtime } from './runtime';
 import { ENC_NAMES, encumbranceLevel, handFactor, legFactor, pain } from './stats';
 import type { GameState } from './types';
+import { BORED_CUTS, UNHAPPY_CUTS, workMult } from './mood';
 
 export interface Condition {
   id: string;
@@ -191,6 +192,21 @@ export function conditions(s: GameState, rt: Runtime): Condition[] {
   if (n.drunk > 0.4) drunkFx.push('Sight range −20%');
   if (!drunkFx.length) drunkFx.push('A pleasant buzz. More and your aim and balance go');
   add('drunk', ['Tipsy', 'Drunk', 'Wasted'], lv(n.drunk, [0.2, 0.45, 0.7]), 'Wait it off somewhere safe.', drunkFx);
+
+  const bored = n.boredom ?? 0;
+  const sad = n.unhappy ?? 0;
+  const boredFx: string[] = [];
+  if (bored > 0.5) boredFx.push(`You learn skills ${pc(Math.max(0, bored - 0.5) * 0.8)} slower`);
+  if (bored > 0.4) boredFx.push('Staying this bored is making you unhappy');
+  if (bored >= 0.75) boredFx.push('Restless: you pace, mutter and kick things when idle indoors — the dead can hear it');
+  if (!boredFx.length) boredFx.push('No effect yet. Much more and it starts to wear on your mood');
+  boredFx.push('Fighting and health are not affected');
+  add('bored', ['Bored', 'Very bored', 'Extremely bored', 'Mind-numbingly bored'], lv(bored, BORED_CUTS), 'Get outside, keep busy, read a comic, play cards, do a crossword, watch TV or listen to the radio. Treats help; the same thing over and over doesn\'t.', boredFx);
+  const sadFx: string[] = [`Chores (crafting, building, searching, barricading) take ${Math.round((workMult(p) - 1) * 100)}% longer`];
+  sadFx.push(`You learn skills ${pc(sad * 0.7)} slower`);
+  if (sad >= 0.75) sadFx.push('You break down crying at times — quietly, but not silently');
+  sadFx.push('Fighting and health are not affected');
+  add('unhappy', ['Sad', 'Unhappy', 'Depressed', 'Severely depressed'], lv(sad, UNHAPPY_CUTS), 'Fix the boredom first. Good food, a drink, a smoke, comics, TV and a good night\'s sleep help. Bland rations, dog food and stale food make it worse.', sadFx);
 
   if (n.craving > 0.5) add('craving', ['Craving a smoke'], 1, 'A cigarette would take the edge off.', ['Stress keeps rising until you smoke']);
 

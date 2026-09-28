@@ -12,7 +12,7 @@ import { buildingPowered } from './lighting';
 import { emitNoise } from './noise';
 import { addXp, lvl } from './skills';
 import type { GameState } from './types';
-import { drinkFromSource, fillContainers, startAction, type Ctx } from './use';
+import { drinkFromSource, fillContainers, startAction, watchTV, type Ctx } from './use';
 import { placeFurn } from '../world/gen/builder';
 import { VEH } from './vehicleSpecs';
 
@@ -434,6 +434,11 @@ export function furnitureUtilityActions(c: Ctx, f: Furniture): Option[] {
     case 'bbq':
       out.push(...cookingOptions(c, f));
       break;
+    case 'tv': {
+      const powered = buildingPowered(s, f.bld);
+      out.push({ label: 'Watch TV (1 h)', enabled: powered, reason: 'No power', run: () => watchTV(c, powered) });
+      break;
+    }
     case 'generator':
       out.push(...generatorOptions(c, f));
       break;

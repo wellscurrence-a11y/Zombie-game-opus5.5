@@ -1,5 +1,6 @@
 import type { Skill } from './items';
 import type { Player } from './types';
+import { learnMult } from './mood';
 
 export const SKILLS: Skill[] = [
   'strength', 'fitness', 'blunt', 'blade', 'firearms', 'sneaking', 'carpentry', 'cooking', 'mechanics', 'medicine', 'electrical', 'farming', 'foraging',
@@ -49,6 +50,7 @@ export function addXp(p: Player, s: Skill, amount: number, traitMult = 1): numbe
   const boost = p.bookBoost[s];
   if (boost !== undefined && before < boost) mult *= 3;
   if (s === 'strength' || s === 'fitness') mult *= 0.25;
+  mult *= learnMult(p);
   p.xp[s] = Math.min(XP_T[10], (p.xp[s] ?? 0) + amount * mult);
   const after = lvl(p, s);
   return after > before ? after : -1;

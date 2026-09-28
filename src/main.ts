@@ -169,6 +169,8 @@ class App {
 
   play(s: GameState): void {
     normalizeZombies(s);
+    s.player.needs.boredom ??= 0;
+    s.player.needs.unhappy ??= 0;
     this.stopGame();
     const g = new Game(this.canvas, s, this.renderer, this.input);
     this.game = g;

@@ -92,6 +92,17 @@ stamina and body temperature are always shown top-left. You get hungry about 13 
 thirsty after about 7; dehydration kills in about two days, starvation in about four. Stay awake too
 long and you collapse where you stand, or nod off at the wheel.
 
+**Boredom and unhappiness** (after Project Zomboid). Sitting indoors with nothing to do slowly bores
+you; staying bored makes you unhappy (Sad → Unhappy → Depressed → Severely depressed). Neither ever
+touches your health or how well you fight. Instead chores (crafting, building, searching, barricading)
+take up to 60% longer, skills are learned far more slowly, and a very bored or depressed survivor
+paces, mutters, kicks the walls and cries — noise the dead can hear. Boredom falls outside, while busy
+or driving, and fast when danger is near. Comics, books, solitaire, crosswords, TV (while the power
+lasts, and audible outside), the radio (while anyone is broadcasting), treats, hot meals, a drink or a
+smoke all help; each pastime counts for less if you repeat it within a day, and re-reading the same
+comic barely helps. Bland rations, stale food and dog food make it worse. First aid, eating and fun are
+never slowed.
+
 **Weight.** Everything weighs something. Bags help but don't make weight meaningless. Heavy loads slow
 you down, burn stamina, and make climbing fences and windows dangerous.
 

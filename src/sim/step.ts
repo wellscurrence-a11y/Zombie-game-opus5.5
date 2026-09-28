@@ -13,6 +13,7 @@ import { hasTrait } from './traits';
 import type { GameState } from './types';
 import { exitVehicle, updateVehicles, type DriveInput } from './vehicles';
 import { updateVision } from './vision';
+import { updateMood } from './mood';
 import { updateWorld } from './world-systems';
 import { updateZombies } from './zombies';
 
@@ -55,6 +56,7 @@ export function simStep(c: SimCtx, dt: number, realDt: number, first: boolean, a
   }
   updateZombies(s, rt, c.pf, dt);
   updateBody(s, rt, hours, realDt);
+  updateMood(s, rt, hours);
   // push past exhaustion and the body decides for you
   if (!p.dead && !p.sleeping && p.needs.fatigue >= 0.985 && rt.threat === 0 && rt.closestZombie >= 8 && !rt.action && p.climbT <= 0 && p.downT <= 0) {
     const v = p.inVehicle >= 0 ? s.vehicles[p.inVehicle] : null;
